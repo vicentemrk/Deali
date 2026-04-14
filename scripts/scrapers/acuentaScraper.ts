@@ -129,7 +129,16 @@ export class AcuentaScraper implements StoreScraper {
 
               const imageUrl = await node.$eval(
                 'img',
-                (el) => el.getAttribute('data-src') || el.getAttribute('src') || ''
+                (el) => {
+                  // Prefer srcset highest-res > data-src (lazy) > src
+                  const srcset = el.getAttribute('srcset');
+                  if (srcset) {
+                    const parts = srcset.split(',').map(s => s.trim());
+                    const last = parts[parts.length - 1]?.split(/\s+/)[0];
+                    if (last) return last;
+                  }
+                  return el.getAttribute('data-src') || el.getAttribute('src') || '';
+                }
               ).catch(() => '');
 
               const offerUrl = await node.$eval(

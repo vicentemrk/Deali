@@ -2,20 +2,28 @@
 const nextConfig = {
   images: {
     remotePatterns: [
-      // Cencosud CDN (Jumbo, Santa Isabel) — VTEX image server
+      // ── VTEX CDN (all VTEX-based stores: Jumbo, Tottus, Santa Isabel, Líder) ──
       { protocol: 'https', hostname: '*.vteximg.com.br' },
       { protocol: 'https', hostname: '*.vtexassets.com' },
-      // Walmart Chile (Líder) — VTEX
+      { protocol: 'https', hostname: '*.vtexcommercestable.com.br' },
+      // Specific VTEX store frontends (for images hosted on main domains)
+      { protocol: 'https', hostname: 'jumbo.vteximg.com.br' },
+      { protocol: 'https', hostname: 'tottus.vteximg.com.br' },
+      { protocol: 'https', hostname: 'santaisabel.vteximg.com.br' },
+      { protocol: 'https', hostname: 'lider.vteximg.com.br' },
+      // Walmart Chile (Líder) — main site images
       { protocol: 'https', hostname: '*.lider.cl' },
       { protocol: 'https', hostname: 'images.lider.cl' },
-      // Falabella (Tottus)
+      // Falabella (Tottus) — Scene7 CDN for high-res product images
       { protocol: 'https', hostname: '*.falabella.com' },
       { protocol: 'https', hostname: 'falabella.scene7.com' },
       // SMU (Unimarc, Acuenta)
       { protocol: 'https', hostname: '*.unimarc.cl' },
       { protocol: 'https', hostname: '*.acuenta.cl' },
-      // Supabase Storage (imágenes subidas en el futuro)
+      // Supabase Storage (uploaded assets)
       { protocol: 'https', hostname: '*.supabase.co' },
+      // Unsplash (placeholder images for promotions)
+      { protocol: 'https', hostname: 'images.unsplash.com' },
     ],
   },
 };

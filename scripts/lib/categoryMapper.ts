@@ -49,8 +49,11 @@ const RULES: Array<[RegExp, string]> = [
   // ── Bebé e Infantil ───────────────────────────────────────────────────
   [/beb[eé]|infantil|ni[ñn]o|pañal|f[oó]rmula\s+infantil|colonia\s+beb[eé]/i, 'infantil'],
 
+  // ── Electrohogar ────────────────────────────────────────────────────────
+  [/electro(hogar|dom[eé]stico)?|televisor|smart\s*tv|microondas|lavadora|secadora|refrigerador|aspiradora|horno\s+el[eé]ctrico|licuadora|batidora|tostador/i, 'electro'],
+
   // ── Bazar y Hogar ─────────────────────────────────────────────────────
-  [/bazar|artefacto|cocina\s+(y\s+\w+)?|vajilla|menaje|electrodom[eé]|jardín|herramienta/i, 'bazar'],
+  [/bazar|artefacto|cocina\s+(y\s+\w+)?|vajilla|menaje|jardín|herramienta/i, 'bazar'],
 
   // ── Despensa (broad — must come last before fallback) ────────────────
   [/despensa|alimento|aceite|arroz|pasta\b|legumbre|conserva|salsa|atún|mayonesa|mostaza|mermelada|miel|cereal|harina|azúcar|sal\b/i, 'despensa'],

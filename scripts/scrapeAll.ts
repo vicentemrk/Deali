@@ -34,13 +34,20 @@ async function processOffers(
   // ── Step 1: Fetch all existing products for this store in 1 query ──────
   const { data: existingProducts, error: fetchErr } = await supabase
     .from('products')
-    .select('id, name')
+    .select('id, name, image_url')
     .eq('store_id', storeId);
 
   if (fetchErr) throw new Error(`[${storeSlug}] Failed to fetch products: ${fetchErr.message}`);
 
   const productMap = new Map<string, string>(
     (existingProducts ?? []).map((p) => [p.name.trim().toLowerCase(), p.id])
+  );
+
+  // Track existing products with no image so we can backfill
+  const productsMissingImage = new Map<string, string>( // id → name key
+    (existingProducts ?? [])
+      .filter((p) => !p.image_url)
+      .map((p) => [p.id, p.name.trim().toLowerCase()])
   );
 
   // ── Step 2: Split new vs existing products ─────────────────────────────
@@ -55,6 +62,22 @@ async function processOffers(
     } else {
       toInsert.push(offer);
     }
+  }
+
+  // ── Step 2.5: Backfill images on existing products that have none ──────
+  const imageUpdates = existing
+    .filter(({ id, offer }) => productsMissingImage.has(id) && offer.imageUrl)
+    .map(({ id, offer }) => ({ id, image_url: offer.imageUrl }));
+
+  if (imageUpdates.length > 0) {
+    // Supabase doesn't support batch update by different PKs in one call,
+    // so we use Promise.allSettled with individual updates (typically < 20)
+    await Promise.allSettled(
+      imageUpdates.map(({ id, image_url }) =>
+        supabase.from('products').update({ image_url }).eq('id', id)
+      )
+    );
+    console.log(`[${storeSlug}] 🖼 Backfilled images on ${imageUpdates.length} products`);
   }
 
   // ── Step 3: Batch insert new products con categoría resuelta ──────────
