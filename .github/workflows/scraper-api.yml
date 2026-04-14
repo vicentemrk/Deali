@@ -1,8 +1,9 @@
-name: Scraper — API (Jumbo, Líder, Santa Isabel)
+name: Scraper — API (Jumbo, Tottus, Líder, Santa Isabel)
 
-# Scrapers API: sin Playwright, sin browser, rápidos (~2 min/run)
-# Cada 30 minutos → datos frescos en las 3 tiendas más grandes
-# Consumo estimado: 2 min × 48 runs/día × 30 días = 2.880 min/mes
+# Scrapers API: sin Playwright, sin browser, rápidos (~2-3 min/run)
+# Cada 30 minutos → datos frescos en las 4 tiendas API
+# Consumo estimado: 3 min × 48 runs/día × 30 días = 4.320 min/mes
+# Tottus migrado de Playwright a VTEX API (tottus.vteximg.com.br)
 
 on:
   schedule:
@@ -45,6 +46,9 @@ jobs:
 
       - name: Scrape Líder
         run: npx tsx scripts/scrapeAll.ts --store lider
+
+      - name: Scrape Tottus
+        run: npx tsx scripts/scrapeAll.ts --store tottus
 
       - name: Scrape Santa Isabel
         run: npx tsx scripts/scrapeAll.ts --store santa-isabel

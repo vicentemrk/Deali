@@ -189,11 +189,11 @@ async function main() {
 
   const scrapers: StoreScraper[] = [
     new JumboScraper(),        // API — VTEX Cencosud
-    new LiderScraper(),        // API — VTEX Walmart Chile
-    new SantaIsabelScraper(),  // API — VTEX Cencosud (convertido desde Playwright)
-    new UnimarcScraper(),      // Playwright — SMU
-    new AcuentaScraper(),      // Playwright — SMU
-    new TottusScraper(),       // Playwright — Falabella
+    new TottusScraper(),       // API — VTEX Falabella (migrado de Playwright)
+    new LiderScraper(),        // API — VTEX Walmart Chile (Cloudflare: graceful fallback)
+    new SantaIsabelScraper(),  // API — VTEX Cencosud
+    new UnimarcScraper(),      // Playwright — SMU (networkidle + scroll)
+    new AcuentaScraper(),      // Playwright — SMU (networkidle + multi-category)
   ];
 
   // Filtro opcional por --store flag

@@ -1,140 +1,101 @@
-import { chromium } from 'playwright';
 import { StoreScraper, RawOffer } from './types';
 
-// Cuántos ciclos de scroll/load-more intentar (cada ciclo ≈ 10-20 productos)
-const MAX_SCROLL_CYCLES = 6;
-// Mínimo de productos que queremos antes de parar
-const TARGET_PRODUCTS = 50;
+const PAGE_SIZE = 50;
+const MAX_PAGES = 4; // 200 productos máximo por run
 
+/**
+ * TottusScraper — Falabella Chile
+ *
+ * Tottus usa la plataforma VTEX (misma base que Jumbo/Santa Isabel).
+ * Usamos el CDN vteximg.com.br para bypasear Cloudflare/Datadome del
+ * dominio principal. No requiere Playwright — fetch puro, JSON limpio.
+ *
+ * Endpoint: tottus.vteximg.com.br/api/catalog_system/pub/products/search
+ */
 export class TottusScraper implements StoreScraper {
   storeSlug = 'tottus';
 
+  // Falabella VTEX CDN (bypasses Cloudflare on www.tottus.cl)
+  private readonly BASE_API =
+    'https://tottus.vteximg.com.br/api/catalog_system/pub/products/search' +
+    '?O=OrderByBestDiscountDESC&fq=specificationFilter_40:Oferta';
+
   async scrape(): Promise<RawOffer[]> {
-    const browser = await chromium.launch({ headless: true });
-    const context = await browser.newContext({
-      userAgent:
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
-        '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-      viewport: { width: 1440, height: 900 },
-    });
-    const page = await context.newPage();
     const offers: RawOffer[] = [];
 
-    try {
-      await page.goto('https://www.tottus.cl/tottus/ofertas', {
-        waitUntil: 'domcontentloaded',
-        timeout: 30_000,
-      });
+    for (let page = 0; page < MAX_PAGES; page++) {
+      const from = page * PAGE_SIZE;
+      const to   = from + PAGE_SIZE - 1;
+      const url  = `${this.BASE_API}&_from=${from}&_to=${to}`;
 
-      // Wait for any product card selector (try multiple patterns)
-      await page.waitForSelector(
-        '.product-card, [data-testid="product-card"], .shelf-item, .ProductCard',
-        { timeout: 15_000 }
-      ).catch(() => console.warn('[TottusScraper] Initial selector timeout — continuing anyway'));
-
-      // ── Scroll + Load More loop ────────────────────────────────────────
-      for (let cycle = 0; cycle < MAX_SCROLL_CYCLES; cycle++) {
-        // Scroll to bottom
-        await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-        await page.waitForTimeout(2000);
-
-        // Count current products
-        const currentCount = await page.$$eval(
-          '.product-card, [data-testid="product-card"], .shelf-item, .ProductCard',
-          (els) => els.length
-        ).catch(() => 0);
-
-        // Try clicking "Ver más" / "Cargar más" if exists
-        const loadMoreClicked = await page.evaluate(() => {
-          const selectors = [
-            '[data-testid="btn-load-more"]',
-            '.btn-load-more',
-            '.load-more',
-            'button[class*="load-more"]',
-            'button[class*="LoadMore"]',
-            'a[class*="load-more"]',
-          ];
-          for (const sel of selectors) {
-            const btn = document.querySelector(sel) as HTMLElement | null;
-            if (btn && btn.offsetParent !== null) { // visible
-              btn.click();
-              return true;
-            }
-          }
-          return false;
+      try {
+        const response = await fetch(url, {
+          headers: {
+            Accept: 'application/json',
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
+              '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            Referer: 'https://www.tottus.cl/tottus/ofertas',
+          },
+          signal: AbortSignal.timeout(15_000),
         });
 
-        if (loadMoreClicked) {
-          await page.waitForTimeout(2500);
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
         }
 
-        if (currentCount >= TARGET_PRODUCTS && !loadMoreClicked) break;
-      }
-      // ────────────────────────────────────────────────────────────────────
+        const products: any[] = await response.json();
 
-      // Parse all product cards found
-      const productNodes = await page.$$(
-        '.product-card, [data-testid="product-card"], .shelf-item, .ProductCard'
-      );
-
-      for (const node of productNodes) {
-        try {
-          const productName = await node.$eval(
-            '.product-title, [data-testid="product-title"], .shelf-item__title, .ProductCard-title',
-            (el) => el.textContent?.trim() || ''
-          ).catch(() => '');
-
-          if (!productName) continue;
-
-          const brand = await node.$eval(
-            '.product-brand, [data-testid="product-brand"], .brand-name',
-            (el) => el.textContent?.trim() || null
-          ).catch(() => null);
-
-          const imageUrl = await node.$eval(
-            'img',
-            (el) => el.getAttribute('src') || el.getAttribute('data-src') || ''
-          ).catch(() => '');
-
-          const offerUrl = await node.$eval(
-            'a',
-            (el) => el.getAttribute('href') || ''
-          ).catch(() => '');
-
-          const offerPriceText = await node.$eval(
-            '.price-best, [data-testid="price-offer"], .shelf-item__price--best, .current-price',
-            (el) => el.textContent?.replace(/[^\d]/g, '') || '0'
-          ).catch(() => '0');
-
-          const originalPriceText = await node.$eval(
-            '.price-normal, [data-testid="price-normal"], .shelf-item__price--normal, .original-price',
-            (el) => el.textContent?.replace(/[^\d]/g, '') || '0'
-          ).catch(() => offerPriceText);
-
-          const offerPrice    = parseInt(offerPriceText, 10);
-          const originalPrice = parseInt(originalPriceText, 10);
-
-          if (!offerPrice || offerPrice === 0 || offerPrice >= originalPrice) continue;
-
-          offers.push({
-            productName,
-            brand,
-            imageUrl,
-            offerUrl: offerUrl.startsWith('http') ? offerUrl : `https://www.tottus.cl${offerUrl}`,
-            offerPrice,
-            originalPrice,
-            categoryHint: null,
-          });
-        } catch (error: any) {
-          console.warn(`[TottusScraper] Error parsing node: ${error.message}`);
+        // Empty page → reached the end
+        if (!products.length) {
+          console.log(`[TottusScraper] Reached end at page ${page} (${offers.length} total).`);
+          break;
         }
+
+        for (const product of products) {
+          try {
+            const item   = product.items?.[0];
+            const seller = item?.sellers?.[0]?.commertialOffer;
+            if (!item || !seller) continue;
+
+            const offerPrice: number    = seller.Price;
+            const originalPrice: number = seller.ListPrice;
+            if (!offerPrice || offerPrice === 0 || offerPrice >= originalPrice) continue;
+
+            const linkText: string = product.linkText || '';
+            const offerUrl = linkText
+              ? `https://www.tottus.cl/${linkText}/p`
+              : 'https://www.tottus.cl/tottus/ofertas';
+
+            const categoryRaw: string =
+              product.categories?.[0]?.replace(/^\/|\/$/g, '').split('/')[0] ?? null;
+
+            offers.push({
+              productName:  product.productName,
+              brand:        product.brand || null,
+              imageUrl:     item.images?.[0]?.imageUrl || '',
+              offerUrl,
+              offerPrice,
+              originalPrice,
+              categoryHint: categoryRaw,
+            });
+          } catch (err: any) {
+            console.warn(`[TottusScraper] Error parsing product: ${err.message}`);
+          }
+        }
+
+        console.log(`[TottusScraper] Page ${page + 1}: +${products.length} products (total: ${offers.length})`);
+      } catch (error: any) {
+        console.error(`[TottusScraper] Fetch error on page ${page}: ${error.message}`);
+        break; // Don't retry on network error — move to next scraper
       }
-    } catch (error: any) {
-      await browser.close();
-      throw new Error(`[TottusScraper Playwright Error] ${error.message}`);
+
+      // Small delay between pages to avoid rate-limiting
+      if (page < MAX_PAGES - 1) {
+        await new Promise((r) => setTimeout(r, 300));
+      }
     }
 
-    await browser.close();
     console.log(`[TottusScraper] ✅ Total: ${offers.length} offers.`);
     return offers;
   }

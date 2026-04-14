@@ -1,8 +1,10 @@
-name: Scraper — Browser (Tottus, Unimarc, Acuenta)
+name: Scraper — Browser (Unimarc, Acuenta)
 
 # Scrapers Playwright: requieren browser install (~400MB), más lentos (~10-12 min/run)
 # Cada 6 horas → 4 runs/día es suficiente para datos razonablemente frescos
 # Consumo estimado: 12 min × 4 runs/día × 30 días = 1.440 min/mes
+#
+# Nota: Tottus fue migrado a VTEX API — ver scraper-api.yml
 
 on:
   schedule:
@@ -38,9 +40,6 @@ jobs:
 
       - name: Install Playwright Chromium
         run: npx playwright install chromium --with-deps
-
-      - name: Scrape Tottus
-        run: npx tsx scripts/scrapeAll.ts --store tottus
 
       - name: Scrape Unimarc
         run: npx tsx scripts/scrapeAll.ts --store unimarc
