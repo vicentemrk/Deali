@@ -1,6 +1,7 @@
 import React from 'react';
 import { OfferCard } from '@/components/OfferCard';
 import { Footer } from '@/components/Footer';
+import Link from 'next/link';
 
 interface PageProps {
   searchParams: { q?: string; page?: string };
@@ -34,6 +35,11 @@ export default async function BuscarPage({ searchParams }: PageProps) {
   return (
     <div className="min-h-screen bg-bg-page font-sans text-gray-900 flex flex-col">
       <main className="container mx-auto px-6 py-12 flex-1">
+        <div className="mb-6">
+          <Link href="/" className="inline-flex items-center gap-2 bg-white px-4 py-2 rounded-full border border-border shadow-sm hover:shadow text-gray-700">
+            Volver
+          </Link>
+        </div>
         <h1 className="text-3xl font-bold mb-2 text-gray-800">Resultados de búsqueda</h1>
         <p className="text-gray-500 mb-8">Buscando: <span className="font-semibold text-purple">"{query}"</span></p>
         

@@ -1,13 +1,14 @@
 import React from 'react';
 import { OfferCard } from '@/components/OfferCard';
 import { Footer } from '@/components/Footer';
+import { CATEGORY_OPTIONS, SORT_OPTIONS } from '@/lib/catalog';
 
 export const revalidate = 1800; // ISR: regenera la página cada 30 min desde CDN
 
 
 interface PageProps {
   params: { slug: string };
-  searchParams: { page?: string };
+  searchParams: { page?: string; category?: string; sort?: string };
 }
 
 export async function generateMetadata({ params }: PageProps) {
@@ -22,8 +23,13 @@ import Link from 'next/link';
 
 export default async function SupermercadoPage({ params, searchParams }: PageProps) {
   const page = searchParams.page || '1';
+  const category = searchParams.category || '';
+  const sort = searchParams.sort || 'discount_desc';
+
+  const query = new URLSearchParams({ page, sort });
+  if (category) query.set('category', category);
   
-  const res = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/stores/${params.slug}/offers?page=${page}`, { next: { revalidate: 1800 } });
+  const res = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/stores/${params.slug}/offers?${query.toString()}`, { next: { revalidate: 1800 } });
   
   let offers = [];
   if (res.ok) {
@@ -34,11 +40,34 @@ export default async function SupermercadoPage({ params, searchParams }: PagePro
   return (
     <div className="min-h-screen bg-bg-page font-sans text-gray-900 flex flex-col">
       <main className="container mx-auto px-6 py-12 flex-1">
-        <div className="flex items-center gap-4 mb-8">
-          <Link href="/" className="flex items-center justify-center bg-white p-2 rounded-full border border-border shadow-sm hover:shadow hover:bg-gray-50 transition-all text-gray-600 hover:text-purple">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
-          </Link>
-          <h1 className="text-4xl font-bold capitalize text-purple m-0">Ofertas en {params.slug}</h1>
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
+          <div className="flex items-center gap-4">
+            <Link href="/" className="inline-flex items-center gap-2 bg-white px-4 py-2 rounded-full border border-border shadow-sm hover:shadow text-gray-700">
+              Volver
+            </Link>
+            <h1 className="text-4xl font-bold capitalize text-purple m-0">Ofertas en {params.slug}</h1>
+          </div>
+
+          <form method="GET" className="flex flex-wrap items-center gap-2">
+            <input type="hidden" name="page" value={page} />
+
+            <label htmlFor="sort" className="text-sm font-medium text-gray-700">Ordenar</label>
+            <select id="sort" name="sort" defaultValue={sort} className="bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm">
+              {SORT_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+
+            <label htmlFor="category" className="text-sm font-medium text-gray-700">Categoría</label>
+            <select id="category" name="category" defaultValue={category} className="bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm">
+              <option value="">Todas</option>
+              {CATEGORY_OPTIONS.map((option) => (
+                <option key={option.slug} value={option.slug}>{option.name}</option>
+              ))}
+            </select>
+
+            <button type="submit" className="bg-purple text-white text-sm rounded-lg px-3 py-2">Aplicar</button>
+          </form>
         </div>
         
         {offers.length === 0 ? (

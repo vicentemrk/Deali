@@ -11,6 +11,7 @@ interface Category {
   id: string;
   name: string;
   slug: string;
+  href?: string;
   children?: Category[];
 }
 
@@ -20,6 +21,7 @@ interface DynamicMenuProps {
 
 export function DynamicMenu({ categories }: DynamicMenuProps) {
   const pathname = usePathname();
+  const getHref = (item: Category) => item.href || `/categoria/${item.slug}`;
 
   return (
     <NavigationMenu.Root className="relative z-50 flex w-full justify-center">
@@ -41,10 +43,10 @@ export function DynamicMenu({ categories }: DynamicMenuProps) {
                         <li key={child.id}>
                           <NavigationMenu.Link asChild>
                             <Link 
-                                href={`/categoria/${child.slug}`}
+                                href={getHref(child)}
                                 className={clsx(
                                   "block select-none rounded-md p-3 text-sm leading-none no-underline outline-none transition-colors hover:bg-teal-light whitespace-nowrap",
-                                  pathname === `/categoria/${child.slug}` ? 'text-teal font-medium' : 'text-gray-700 hover:text-teal'
+                                  pathname === getHref(child) ? 'text-teal font-medium' : 'text-gray-700 hover:text-teal'
                                 )}
                             >
                                 {child.name}
@@ -58,10 +60,10 @@ export function DynamicMenu({ categories }: DynamicMenuProps) {
              ) : (
                 <NavigationMenu.Link asChild>
                     <Link 
-                        href={`/categoria/${cat.slug}`}
+                      href={getHref(cat)}
                         className={clsx(
                             "text-gray-700 hover:text-teal focus:text-teal block select-none rounded px-3 py-2 text-sm font-medium leading-none no-underline outline-none focus:shadow-[0_0_0_2px]",
-                            pathname === `/categoria/${cat.slug}` ? 'text-teal font-medium' : ''
+                        pathname === getHref(cat) ? 'text-teal font-medium' : ''
                         )}
                     >
                         {cat.name}

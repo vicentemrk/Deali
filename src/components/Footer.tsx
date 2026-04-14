@@ -32,8 +32,8 @@ export function Footer() {
           <ul className="space-y-2 opacity-80 text-sm">
             <li><Link href="/promociones" className="hover:text-white transition-colors">Promociones</Link></li>
             <li><Link href="/categoria/despensa" className="hover:text-white transition-colors">Despensa</Link></li>
-            <li><Link href="/categoria/bebidas" className="hover:text-white transition-colors">Bebidas y Licores</Link></li>
-            <li><Link href="/categoria/limpieza" className="hover:text-white transition-colors">Limpieza</Link></li>
+            <li><Link href="/categoria/bebidas" className="hover:text-white transition-colors">Bebidas</Link></li>
+            <li><Link href="/categoria/limpieza-hogar" className="hover:text-white transition-colors">Limpieza del Hogar</Link></li>
           </ul>
         </div>
 

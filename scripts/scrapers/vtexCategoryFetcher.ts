@@ -17,6 +17,8 @@ import { RawOffer } from './types';
 export interface VtexFetcherConfig {
   /** VTEX CDN base, e.g. 'https://jumbo.vteximg.com.br' */
   cdnBase: string;
+  /** Optional fallback bases when the primary endpoint returns 404/blocked */
+  fallbackBases?: string[];
   /** Real site base for product URLs, e.g. 'https://www.jumbo.cl' */
   siteBase: string;
   /** URL path prefix between siteBase and linkText, e.g. '' or '/supermercado' */
@@ -33,6 +35,8 @@ export interface VtexFetcherConfig {
   pageSize?: number;
   /** Max concurrent page fetches. Default: 3 */
   concurrency?: number;
+  /** Optional extra request headers, e.g. Cookie for anti-bot sessions */
+  extraHeaders?: Record<string, string>;
 }
 
 /**
@@ -65,30 +69,43 @@ function bestImageUrl(item: any): string {
  * Fetches a single page from the VTEX catalog API.
  */
 async function fetchPage(
-  cdnBase: string,
+  bases: string[],
   from: number,
   to: number,
   referer: string,
+  extraHeaders: Record<string, string> = {},
   timeoutMs: number = 15_000
 ): Promise<any[]> {
-  const url = `${cdnBase}/api/catalog_system/pub/products/search?O=OrderByBestDiscountDESC&_from=${from}&_to=${to}`;
+  let lastError: Error | null = null;
 
-  const response = await fetch(url, {
-    headers: {
-      Accept: 'application/json',
-      'User-Agent':
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
-        '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-      Referer: referer,
-    },
-    signal: AbortSignal.timeout(timeoutMs),
-  });
+  for (const base of bases) {
+    const url = `${base}/api/catalog_system/pub/products/search?O=OrderByBestDiscountDESC&_from=${from}&_to=${to}`;
 
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}`);
+    try {
+      const response = await fetch(url, {
+        headers: {
+          Accept: 'application/json',
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
+            '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+          Referer: referer,
+          ...extraHeaders,
+        },
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+
+      if (!response.ok) {
+        lastError = new Error(`HTTP ${response.status} @ ${base}`);
+        continue;
+      }
+
+      return response.json();
+    } catch (error: any) {
+      lastError = new Error(`${error.message} @ ${base}`);
+    }
   }
 
-  return response.json();
+  throw lastError ?? new Error('Unknown VTEX fetch error');
 }
 
 /**
@@ -155,6 +172,11 @@ export async function fetchVtexMultiCategory(
   const limit = pLimit(concurrency);
   const seenNames = new Set<string>();
   const allOffers: RawOffer[] = [];
+  const baseCandidates = [
+    config.cdnBase,
+    ...(config.fallbackBases ?? []),
+    config.siteBase,
+  ];
 
   console.log(`[${config.logTag}] Fetching up to ${maxPages} pages × ${pageSize} products (concurrency: ${concurrency})...`);
 
@@ -172,7 +194,7 @@ export async function fetchVtexMultiCategory(
         const to = from + pageSize - 1;
 
         try {
-          const products = await fetchPage(config.cdnBase, from, to, config.referer);
+          const products = await fetchPage(baseCandidates, from, to, config.referer, config.extraHeaders ?? {});
 
           if (!products.length) {
             console.log(`[${config.logTag}] Reached end at page ${page} (${allOffers.length} total).`);
@@ -192,7 +214,7 @@ export async function fetchVtexMultiCategory(
           console.log(`[${config.logTag}] Page ${page + 1}: +${pageOffers.length} offers from ${products.length} products`);
           return pageOffers;
         } catch (error: any) {
-          console.warn(`[${config.logTag}] Page ${page} fetch failed: ${error.message}`);
+          console.warn(`[${config.logTag}] Page ${page + 1} fetch failed: ${error.message}`);
           return [];
         }
       })

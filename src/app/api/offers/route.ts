@@ -12,10 +12,14 @@ export async function GET(req: NextRequest) {
   const limit = parseInt(searchParams.get('limit') || '20', 10);
   const store = searchParams.get('store');
   const category = searchParams.get('category');
+  const excludeCategory = searchParams.get('excludeCategory');
   const q = searchParams.get('q');
+  const sort = searchParams.get('sort') || 'discount_desc';
+
+  const safeLimit = Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 100) : 20;
 
   // Create hash params for cache key
-  const cacheKey = `offers:list:${JSON.stringify({ page, limit, store, category, q })}`;
+  const cacheKey = `offers:list:${JSON.stringify({ page, safeLimit, store, category, excludeCategory, q, sort })}`;
 
   try {
     const result = await cached(
@@ -33,14 +37,33 @@ export async function GET(req: NextRequest) {
         if (category) {
           query = query.eq('category_slug', category);
         }
+        if (excludeCategory) {
+          query = query.neq('category_slug', excludeCategory);
+        }
         if (q) {
           query = query.ilike('product_name', `%${q}%`);
         }
 
-        const from = (page - 1) * limit;
-        const to = from + limit - 1;
+        const from = (page - 1) * safeLimit;
+        const to = from + safeLimit - 1;
 
-        query = query.range(from, to).order('discount_pct', { ascending: false });
+        switch (sort) {
+          case 'discount_asc':
+            query = query.order('discount_pct', { ascending: true });
+            break;
+          case 'price_desc':
+            query = query.order('offer_price', { ascending: false });
+            break;
+          case 'price_asc':
+            query = query.order('offer_price', { ascending: true });
+            break;
+          case 'discount_desc':
+          default:
+            query = query.order('discount_pct', { ascending: false });
+            break;
+        }
+
+        query = query.range(from, to);
 
         const { data, error, count } = await query;
         if (error) {

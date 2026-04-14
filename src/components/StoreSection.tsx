@@ -1,7 +1,5 @@
 import React from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
-import { OfferCard } from './OfferCard';
 import { ArrowRight } from 'lucide-react';
 
 interface StoreSectionProps {
@@ -44,11 +42,28 @@ export function StoreSection({ store, offers }: StoreSectionProps) {
         </Link>
       </div>
 
-      <div className="flex overflow-x-auto gap-6 pb-4 snap-x hidescrollbar">
-        {offers.map(offer => (
-          <div key={offer.offer_id} className="min-w-[300px] max-w-[300px] snap-start">
-             <OfferCard offer={offer} />
-          </div>
+      <div className="flex overflow-x-auto gap-4 pb-2 snap-x hidescrollbar">
+        {offers.map((offer) => (
+          <article
+            key={offer.offer_id}
+            className="min-w-[260px] max-w-[260px] snap-start bg-white border border-gray-100 rounded-2xl p-4 shadow-sm"
+          >
+            <h3 className="text-sm font-bold text-gray-800 line-clamp-2 mb-3">{offer.product_name}</h3>
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-xl font-black text-teal">${offer.offer_price.toLocaleString('es-CL')}</span>
+              {offer.original_price > offer.offer_price && (
+                <span className="text-xs text-gray-500 line-through">${offer.original_price.toLocaleString('es-CL')}</span>
+              )}
+            </div>
+            <a
+              href={offer.offer_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center rounded-xl bg-purple text-white text-xs font-semibold px-3 py-2"
+            >
+              Ver oferta
+            </a>
+          </article>
         ))}
       </div>
     </section>

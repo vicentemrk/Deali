@@ -46,7 +46,6 @@ export class AcuentaScraper implements StoreScraper {
       route.abort()
     );
 
-    const page = await context.newPage();
     const offers: RawOffer[] = [];
     const seenNames = new Set<string>(); // dedup across categories
 
@@ -56,15 +55,22 @@ export class AcuentaScraper implements StoreScraper {
         if (offers.length >= TARGET_PRODUCTS) break;
 
         console.log(`[AcuentaScraper] → ${categoryUrl}`);
+        const page = await context.newPage();
 
         try {
-          await page.goto(categoryUrl, { waitUntil: 'networkidle', timeout: 45_000 });
+          await page.goto(categoryUrl, { waitUntil: 'domcontentloaded', timeout: 35_000 });
           await page.waitForTimeout(1_500); // SPA hydration
 
-          await page.waitForSelector(
+          const hasProducts = await page.waitForSelector(
             '.product-card, .ProductCard, [data-testid="product-card"], .catalog-item, article[class*="product"]',
             { timeout: 15_000 }
-          ).catch(() => console.warn(`[AcuentaScraper] Selector timeout on ${categoryUrl}`));
+          ).then(() => true).catch(() => false);
+
+          if (!hasProducts) {
+            console.warn(`[AcuentaScraper] Selector timeout on ${categoryUrl}`);
+            await page.close();
+            continue;
+          }
 
           // ── Scroll + Load More ─────────────────────────────────────────
           for (let cycle = 0; cycle < MAX_SCROLL_CYCLES; cycle++) {
@@ -180,6 +186,8 @@ export class AcuentaScraper implements StoreScraper {
         } catch (navError: any) {
           console.warn(`[AcuentaScraper] Failed to scrape ${categoryUrl}: ${navError.message}`);
           // Continue to next category instead of aborting
+        } finally {
+          await page.close();
         }
       }
     } catch (error: any) {

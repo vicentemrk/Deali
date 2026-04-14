@@ -1,6 +1,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { DynamicMenu } from './DynamicMenu';
+import { CATEGORY_OPTIONS } from '@/lib/catalog';
 
 const HEADER_CATEGORIES = [
   {
@@ -9,23 +10,18 @@ const HEADER_CATEGORIES = [
     slug: 'supermercados',
     children: [
       { id: 'jumbo', name: 'Jumbo', slug: 'jumbo' },
-      { id: 'lider', name: 'Líder', slug: 'lider' },
+      { id: 'lider', name: 'Lider', slug: 'lider' },
       { id: 'unimarc', name: 'Unimarc', slug: 'unimarc' },
       { id: 'acuenta', name: 'aCuenta', slug: 'acuenta' },
       { id: 'tottus', name: 'Tottus', slug: 'tottus' },
       { id: 'santa-isabel', name: 'Santa Isabel', slug: 'santa-isabel' },
-    ]
+    ].map((store) => ({ ...store, href: `/supermercado/${store.slug}` }))
   },
   {
-    id: 'departamentos',
-    name: 'Departamentos',
-    slug: 'departamentos',
-    children: [
-      { id: 'despensa', name: 'Despensa', slug: 'despensa' },
-      { id: 'bebidas', name: 'Bebidas', slug: 'bebidas' },
-      { id: 'lacteos', name: 'Lácteos', slug: 'lacteos' },
-      { id: 'aseo', name: 'Limpieza y Aseo', slug: 'aseo' }
-    ]
+    id: 'categorias',
+    name: 'Categorias',
+    slug: 'categorias',
+    children: CATEGORY_OPTIONS.map((cat) => ({ id: cat.slug, name: cat.name, slug: cat.slug }))
   }
 ];
 

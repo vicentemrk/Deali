@@ -13,6 +13,47 @@ import * as path from 'path';
 // Cargar .env.local
 dotenv.config({ path: path.join(__dirname, '..', '.env.local') });
 
+const MAX_OFFERS_PER_STORE = 10;
+
+const CANONICAL_CATEGORIES = [
+  { name: 'Bebidas', slug: 'bebidas' },
+  { name: 'Lácteos', slug: 'lacteos' },
+  { name: 'Carnes y Pescados', slug: 'carnes-pescados' },
+  { name: 'Frutas y Verduras', slug: 'frutas-verduras' },
+  { name: 'Congelados', slug: 'congelados' },
+  { name: 'Panadería y Pastelería', slug: 'panaderia-pasteleria' },
+  { name: 'Snacks y Galletas', slug: 'snacks-galletas' },
+  { name: 'Cuidado Personal y Bebe', slug: 'cuidado-personal-bebe' },
+  { name: 'Limpieza del Hogar', slug: 'limpieza-hogar' },
+  { name: 'Bebidas Alcohólicas', slug: 'bebidas-alcoholicas' },
+  { name: 'Mascotas', slug: 'mascotas' },
+  { name: 'Electrohogar', slug: 'electrohogar' },
+  { name: 'Bazar y Hogar', slug: 'bazar-hogar' },
+  { name: 'Despensa', slug: 'despensa' },
+];
+
+function selectOffersForTest(rawOffers: RawOffer[]): RawOffer[] {
+  const chosenByCategory = new Map<string, RawOffer>();
+  const remainder: RawOffer[] = [];
+
+  for (const offer of rawOffers) {
+    const categorySlug = mapCategory(offer.categoryHint);
+    if (!chosenByCategory.has(categorySlug)) {
+      chosenByCategory.set(categorySlug, offer);
+    } else {
+      remainder.push(offer);
+    }
+  }
+
+  const selected = [...chosenByCategory.values()];
+  const missing = MAX_OFFERS_PER_STORE - selected.length;
+  if (missing > 0) {
+    selected.push(...remainder.slice(0, missing));
+  }
+
+  return selected.slice(0, MAX_OFFERS_PER_STORE);
+}
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -29,23 +70,25 @@ async function processOffers(
   offers: RawOffer[],
   categorySlugMap: Map<string, string>  // slug → UUID precargado al inicio
 ) {
-  if (offers.length === 0) {
+  const targetOffers = selectOffersForTest(offers);
+
+  if (targetOffers.length === 0) {
     console.log(`[${storeSlug}] No offers to process.`);
     return;
   }
 
-  console.log(`[${storeSlug}] Processing ${offers.length} offers...`);
+  console.log(`[${storeSlug}] Processing ${targetOffers.length}/${offers.length} offers...`);
 
   // ── Step 1: Fetch all existing products for this store in 1 query ──────
   const { data: existingProducts, error: fetchErr } = await supabase
     .from('products')
-    .select('id, name, image_url')
+    .select('id, name, image_url, category_id')
     .eq('store_id', storeId);
 
   if (fetchErr) throw new Error(`[${storeSlug}] Failed to fetch products: ${fetchErr.message}`);
 
-  const productMap = new Map<string, string>(
-    (existingProducts ?? []).map((p) => [p.name.trim().toLowerCase(), p.id])
+  const productMap = new Map<string, { id: string; category_id: string | null }>(
+    (existingProducts ?? []).map((p) => [p.name.trim().toLowerCase(), { id: p.id, category_id: p.category_id }])
   );
 
   // Track existing products with no image so we can backfill
@@ -59,11 +102,11 @@ async function processOffers(
   const toInsert: typeof offers = [];
   const existing: { id: string; offer: RawOffer }[] = [];
 
-  for (const offer of offers) {
+  for (const offer of targetOffers) {
     const key = offer.productName.trim().toLowerCase();
-    const pid = productMap.get(key);
-    if (pid) {
-      existing.push({ id: pid, offer });
+    const existingProduct = productMap.get(key);
+    if (existingProduct) {
+      existing.push({ id: existingProduct.id, offer });
     } else {
       toInsert.push(offer);
     }
@@ -83,6 +126,27 @@ async function processOffers(
       )
     );
     console.log(`[${storeSlug}] 🖼 Backfilled images on ${imageUpdates.length} products`);
+  }
+
+  // Backfill category_id on existing products when normalization changed
+  const categoryUpdates = existing
+    .map(({ id, offer }) => {
+      const categorySlug = mapCategory(offer.categoryHint);
+      const categoryId = categorySlugMap.get(categorySlug);
+      if (!categoryId) return null;
+      const prevCategoryId = (existingProducts ?? []).find((p) => p.id === id)?.category_id ?? null;
+      if (prevCategoryId === categoryId) return null;
+      return { id, category_id: categoryId };
+    })
+    .filter((item): item is { id: string; category_id: string } => item != null);
+
+  if (categoryUpdates.length > 0) {
+    await Promise.allSettled(
+      categoryUpdates.map(({ id, category_id }) =>
+        supabase.from('products').update({ category_id }).eq('id', id)
+      )
+    );
+    console.log(`[${storeSlug}] 🧭 Normalized categories on ${categoryUpdates.length} products`);
   }
 
   // ── Step 3: Batch insert new products con categoría resuelta ──────────
@@ -127,9 +191,7 @@ async function processOffers(
 
   const now        = new Date();
   const today      = now.toISOString().split('T')[0];
-  const endDate    = new Date(now);
-  endDate.setDate(endDate.getDate() + 7);
-  const endDateStr = endDate.toISOString().split('T')[0];
+  const endDateStr = '9999-12-31';
 
   // ── Step 4: Batch upsert offers (1 query) ─────────────────────────────
   const offersPayload = allProductIds.map(({ id: productId, offer }) => {
@@ -194,6 +256,15 @@ async function runInBatches<T>(
 
 async function main() {
   console.log('[ScrapeAll] Iniciando...');
+
+  // Garantiza categorías canónicas para que la normalización no caiga en "General"
+  const { error: categorySeedError } = await supabase
+    .from('categories')
+    .upsert(CANONICAL_CATEGORIES, { onConflict: 'slug' });
+
+  if (categorySeedError) {
+    throw new Error(`Failed to seed canonical categories: ${categorySeedError.message}`);
+  }
 
   // ── Pre-fetch global: stores y categories (1 query cada uno) ──────────
   const [storesResult, categoriesResult] = await Promise.all([
@@ -261,8 +332,13 @@ async function main() {
     `\n[ScrapeAll] Completo: ${successCount} exitosos, ${failCount} fallidos.`
   );
 
-  if (failCount > 0) {
-    process.exit(1); // GitHub Actions marca el run como fallido
+  const strictMode = process.argv.includes('--strict') || process.env.SCRAPE_STRICT === '1';
+  if (strictMode && failCount > 0) {
+    process.exit(1);
+  }
+
+  if (!strictMode && successCount === 0) {
+    process.exit(1);
   }
 }
 

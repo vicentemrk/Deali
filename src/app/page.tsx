@@ -4,6 +4,7 @@ import { StoreSection } from '@/components/StoreSection';
 import { PromotionBanner } from '@/components/PromotionBanner';
 import { Footer } from '@/components/Footer';
 import Link from 'next/link';
+import { ALCOHOL_CATEGORY_SLUG, CATEGORY_OPTIONS } from '@/lib/catalog';
 
 const STORE_COLORS: Record<string, string> = {
   jumbo: '#0D9488',
@@ -37,7 +38,7 @@ export default async function HomePage() {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
   
   const [offersData, stores, promotions] = await Promise.all([
-    safeFetch(`${baseUrl}/api/offers?limit=20`),
+    safeFetch(`${baseUrl}/api/offers?limit=60&excludeCategory=${ALCOHOL_CATEGORY_SLUG}`),
     safeFetch(`${baseUrl}/api/stores`),
     safeFetch(`${baseUrl}/api/promotions`),
   ]);
@@ -63,7 +64,7 @@ export default async function HomePage() {
           </p>
           {/* Supermercados Grid */}
           <div className="mt-12">
-            <h2 className="text-xl font-bold text-gray-800 mb-6 text-left">Tiendas Destacadas</h2>
+            <h2 className="text-xl font-bold text-gray-800 mb-6 text-left">Supermercados destacados</h2>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
               {activeStores.map((store: any) => (
                 <Link
@@ -82,14 +83,9 @@ export default async function HomePage() {
 
           {/* Categorias Grid */}
           <div className="mt-12">
-            <h2 className="text-xl font-bold text-gray-800 mb-6 text-left">Explorar por Categoría</h2>
+            <h2 className="text-xl font-bold text-gray-800 mb-6 text-left">Categorias Principales</h2>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              {[
-                { name: 'Despensa', slug: 'despensa' },
-                { name: 'Bebidas', slug: 'bebidas' },
-                { name: 'Lácteos', slug: 'lacteos' },
-                { name: 'Limpieza', slug: 'aseo' }
-              ].map(cat => (
+              {CATEGORY_OPTIONS.slice(0, 8).map(cat => (
                 <Link
                   key={cat.slug}
                   href={`/categoria/${cat.slug}`}
@@ -114,7 +110,9 @@ export default async function HomePage() {
         {/* Store Sections */}
         {activeOffers.length > 0 ? (
           activeStores.map((store: any) => {
-            const storeOffers = activeOffers.filter((o: any) => o.store_slug === store.slug);
+            const storeOffers = activeOffers
+              .filter((o: any) => o.store_slug === store.slug && o.category_slug !== ALCOHOL_CATEGORY_SLUG)
+              .slice(0, 5);
             return <StoreSection key={store.id} store={store} offers={storeOffers} />;
           })
         ) : (

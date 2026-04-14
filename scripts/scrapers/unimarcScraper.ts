@@ -18,7 +18,10 @@ export class UnimarcScraper implements StoreScraper {
   storeSlug = 'unimarc';
 
   private readonly BASE_URL   = 'https://www.unimarc.cl';
-  private readonly OFFERS_URL = 'https://www.unimarc.cl/ofertas';
+  private readonly OFFERS_URLS = [
+    'https://www.unimarc.cl/ofertas',
+    'https://www.unimarc.cl/categorias/ofertas',
+  ];
 
   async scrape(): Promise<RawOffer[]> {
     const browser = await chromium.launch({ headless: true });
@@ -40,16 +43,33 @@ export class UnimarcScraper implements StoreScraper {
     const offers: RawOffer[] = [];
 
     try {
-      // networkidle waits until no network requests for 500ms — catches SPA hydration
-      await page.goto(this.OFFERS_URL, { waitUntil: 'networkidle', timeout: 45_000 });
+      let navigated = false;
+      for (const url of this.OFFERS_URLS) {
+        try {
+          await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 35_000 });
+          navigated = true;
+          break;
+        } catch (error: any) {
+          console.warn(`[UnimarcScraper] Navigation failed for ${url}: ${error.message}`);
+        }
+      }
 
-      // Extra wait for SPA JS hydration after networkidle fires
-      await page.waitForTimeout(1_500);
+      if (!navigated) {
+        throw new Error('Could not load Unimarc offers URLs');
+      }
 
-      await page.waitForSelector(
+      await page.waitForTimeout(2_000);
+
+      const hasProducts = await page.waitForSelector(
         '.ProductCard, .product-card, [data-testid="product-card"], .catalog-item, article[class*="product"]',
         { timeout: 15_000 }
-      ).catch(() => console.warn('[UnimarcScraper] Initial selector timeout — continuing'));
+      ).then(() => true).catch(() => false);
+
+      if (!hasProducts) {
+        console.warn('[UnimarcScraper] Initial selector timeout — returning empty result');
+        await browser.close();
+        return [];
+      }
 
       // ── Scroll + Load More loop ──────────────────────────────────────────
       for (let cycle = 0; cycle < MAX_SCROLL_CYCLES; cycle++) {

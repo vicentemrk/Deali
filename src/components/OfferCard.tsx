@@ -19,9 +19,10 @@ interface OfferCardProps {
 }
 
 export function OfferCard({ offer }: OfferCardProps) {
-  const endDate = new Date(offer.end_date);
+  const hasKnownEndDate = Boolean(offer.end_date) && !String(offer.end_date).startsWith('9999');
+  const endDate = hasKnownEndDate ? new Date(offer.end_date) : null;
   const now = new Date();
-  const timeDiff = endDate.getTime() - now.getTime();
+  const timeDiff = endDate ? endDate.getTime() - now.getTime() : Number.POSITIVE_INFINITY;
   const daysDiff = Math.ceil(timeDiff / (1000 * 3600 * 24));
   const expiresSoon = daysDiff <= 3 && daysDiff >= 0;
 
@@ -83,7 +84,9 @@ export function OfferCard({ offer }: OfferCardProps) {
         {/* Action Row */}
         <div className="flex items-center justify-between border-t border-teal/10 pt-4">
           <div className="text-xs font-bold text-gray-600 bg-teal-light/60 px-3 py-2 rounded-lg border border-teal/10 shadow-sm">
-            Hasta {new Date(offer.end_date).toLocaleDateString('es-CL', {day: 'numeric', month: 'short'})}
+            {endDate
+              ? `Hasta ${endDate.toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}`
+              : 'No especificado'}
           </div>
           
           <a 
