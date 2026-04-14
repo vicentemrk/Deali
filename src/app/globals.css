@@ -1,0 +1,18 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Hide scrollbar for horizontal scroll sections */
+.hidescrollbar::-webkit-scrollbar {
+  display: none;
+}
+.hidescrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+body {
+  background-color: var(--color-bg-page, #F4F4F0);
+  background-image: radial-gradient(circle, #D5D5CF 1.5px, transparent 1.5px);
+  background-size: 24px 24px;
+}
