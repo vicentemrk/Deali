@@ -7,6 +7,11 @@ import { TottusScraper } from './scrapers/tottusScraper';
 import { SantaIsabelScraper } from './scrapers/santaIsabelScraper';
 import { StoreScraper, RawOffer } from './scrapers/types';
 import { mapCategory } from './lib/categoryMapper';
+import * as dotenv from 'dotenv';
+import * as path from 'path';
+
+// Cargar .env.local
+dotenv.config({ path: path.join(__dirname, '..', '.env.local') });
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
