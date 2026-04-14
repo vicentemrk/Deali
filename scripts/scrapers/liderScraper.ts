@@ -1,85 +1,92 @@
 import { StoreScraper, RawOffer } from './types';
 
-/**
- * LiderScraper — Walmart Chile
- * Uses the public VTEX catalog API (same stack as Jumbo/Cencosud)
- * to fetch real on-sale products without Playwright.
- * 
- * Endpoint: https://www.lider.cl/supermercado API proxied via VTEX
- * Falls back to the vteximg CDN domain to bypass Cloudflare on the main domain.
- */
+const PAGE_SIZE = 50;
+const MAX_PAGES = 4;
+
 export class LiderScraper implements StoreScraper {
   storeSlug = 'lider';
 
   private readonly BASE_URL = 'https://www.lider.cl';
-  // VTEX search endpoint ordered by best discount, fetches 50 products per call
-  private readonly API_URL =
+  private readonly BASE_API =
     'https://www.lider.cl/supermercado/api/catalog_system/pub/products/search' +
-    '?O=OrderByBestDiscountDESC&fq=specificationFilter_40:Oferta&_from=0&_to=49';
+    '?O=OrderByBestDiscountDESC&fq=specificationFilter_40:Oferta';
 
   async scrape(): Promise<RawOffer[]> {
     const offers: RawOffer[] = [];
 
-    try {
-      const response = await fetch(this.API_URL, {
-        headers: {
-          Accept: 'application/json',
-          'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
-            '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-          Referer: 'https://www.lider.cl/supermercado/ofertas',
-        },
-        // 15s timeout via AbortController
-        signal: AbortSignal.timeout(15_000),
-      });
+    for (let page = 0; page < MAX_PAGES; page++) {
+      const from = page * PAGE_SIZE;
+      const to   = from + PAGE_SIZE - 1;
+      const url  = `${this.BASE_API}&_from=${from}&_to=${to}`;
 
-      if (!response.ok) {
-        throw new Error(`[LiderScraper] API responded with status: ${response.status}`);
-      }
+      try {
+        const response = await fetch(url, {
+          headers: {
+            Accept: 'application/json',
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
+              '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            Referer: 'https://www.lider.cl/supermercado/ofertas',
+          },
+          signal: AbortSignal.timeout(15_000),
+        });
 
-      const products: any[] = await response.json();
-
-      for (const product of products) {
-        try {
-          const item = product.items?.[0];
-          if (!item) continue;
-
-          const seller = item.sellers?.[0]?.commertialOffer;
-          if (!seller) continue;
-
-          const offerPrice: number = seller.Price;
-          const originalPrice: number = seller.ListPrice;
-
-          // Skip non-discounted or free items
-          if (!offerPrice || offerPrice === 0 || offerPrice >= originalPrice) continue;
-
-          // Build real product URL from linkText (URL-safe product slug from VTEX)
-          const linkText: string = product.linkText || '';
-          const offerUrl = linkText
-            ? `${this.BASE_URL}/supermercado/${linkText}/p`
-            : `${this.BASE_URL}/supermercado/ofertas`;
-
-          const categoryRaw: string =
-            product.categories?.[0]?.replace(/^\/|\/$/g, '').split('/')[0] || null;
-
-          offers.push({
-            productName: product.productName,
-            brand: product.brand || null,
-            imageUrl: item.images?.[0]?.imageUrl || '',
-            offerUrl,
-            offerPrice,
-            originalPrice,
-            categoryHint: categoryRaw,
-          });
-        } catch (err: any) {
-          console.warn(`[LiderScraper] Error parsing product: ${err.message}`);
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
         }
+
+        const products: any[] = await response.json();
+        if (!products.length) {
+          console.log(`[LiderScraper] Reached end at page ${page} (${offers.length} total).`);
+          break;
+        }
+
+        for (const product of products) {
+          try {
+            const item   = product.items?.[0];
+            const seller = item?.sellers?.[0]?.commertialOffer;
+            if (!item || !seller) continue;
+
+            const offerPrice: number    = seller.Price;
+            const originalPrice: number = seller.ListPrice;
+            if (!offerPrice || offerPrice === 0 || offerPrice >= originalPrice) continue;
+
+            const linkText: string = product.linkText || '';
+            const offerUrl = linkText
+              ? `${this.BASE_URL}/supermercado/${linkText}/p`
+              : `${this.BASE_URL}/supermercado/ofertas`;
+
+            const categoryRaw: string =
+              product.categories?.[0]?.replace(/^\/|\/$/g, '').split('/')[0] ?? null;
+
+            offers.push({
+              productName:   product.productName,
+              brand:         product.brand || null,
+              imageUrl:      item.images?.[0]?.imageUrl || '',
+              offerUrl,
+              offerPrice,
+              originalPrice,
+              categoryHint:  categoryRaw,
+            });
+          } catch (err: any) {
+            console.warn(`[LiderScraper] Error parsing product: ${err.message}`);
+          }
+        }
+
+        console.log(
+          `[LiderScraper] Page ${page + 1}: +${products.length} products (total: ${offers.length})`
+        );
+      } catch (error: any) {
+        console.error(`[LiderScraper] Fetch error on page ${page}: ${error.message}`);
+        break;
       }
-    } catch (error: any) {
-      throw new Error(`[LiderScraper Fetch Error] ${error.message}`);
+
+      if (page < MAX_PAGES - 1) {
+        await new Promise((r) => setTimeout(r, 300));
+      }
     }
 
-    console.log(`[LiderScraper] Scraped ${offers.length} offers.`);
+    console.log(`[LiderScraper] ✅ Total: ${offers.length} offers.`);
     return offers;
   }
 }

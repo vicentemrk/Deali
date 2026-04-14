@@ -1,52 +1,138 @@
 import { chromium } from 'playwright';
 import { StoreScraper, RawOffer } from './types';
 
+const MAX_SCROLL_CYCLES = 6;
+const TARGET_PRODUCTS   = 50;
+
+/**
+ * AcuentaScraper — SMU Group (misma plataforma que Unimarc)
+ *
+ * aCuenta comparte infraestructura con Unimarc (SMU). Se aplica el mismo
+ * patrón de scroll + load-more para extraer 50+ productos.
+ */
 export class AcuentaScraper implements StoreScraper {
   storeSlug = 'acuenta';
 
+  private readonly BASE_URL   = 'https://www.acuenta.cl';
+  private readonly OFFERS_URL = 'https://www.acuenta.cl/categorias/ofertas';
+
   async scrape(): Promise<RawOffer[]> {
     const browser = await chromium.launch({ headless: true });
-    const page = await browser.newPage();
+    const context = await browser.newContext({
+      userAgent:
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
+        '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      viewport: { width: 1440, height: 900 },
+    });
+    const page = await context.newPage();
     const offers: RawOffer[] = [];
 
     try {
-      await page.goto('https://www.acuenta.cl/categorias/ofertas', { waitUntil: 'domcontentloaded' });
-      await page.waitForSelector('.product-card', { timeout: 10000 });
+      await page.goto(this.OFFERS_URL, { waitUntil: 'domcontentloaded', timeout: 30_000 });
 
-      const productNodes = await page.$$('.product-card');
+      await page.waitForSelector(
+        '.product-card, .ProductCard, [data-testid="product-card"], .catalog-item',
+        { timeout: 15_000 }
+      ).catch(() => console.warn('[AcuentaScraper] Initial selector timeout'));
+
+      // ── Scroll + Load More ─────────────────────────────────────────────
+      for (let cycle = 0; cycle < MAX_SCROLL_CYCLES; cycle++) {
+        await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+        await page.waitForTimeout(2000);
+
+        const currentCount = await page.$$eval(
+          '.product-card, .ProductCard, [data-testid="product-card"], .catalog-item',
+          (els) => els.length
+        ).catch(() => 0);
+
+        const loadMoreClicked = await page.evaluate(() => {
+          const selectors = [
+            '[data-testid="load-more-btn"]',
+            '.btn--load-more',
+            'button[class*="load-more"]',
+            'button[class*="LoadMore"]',
+            '[class*="see-more"]',
+            '[class*="ver-mas"]',
+            '.show-more',
+          ];
+          for (const sel of selectors) {
+            const btn = document.querySelector(sel) as HTMLElement | null;
+            if (btn && btn.offsetParent !== null) {
+              btn.click();
+              return true;
+            }
+          }
+          return false;
+        });
+
+        if (loadMoreClicked) await page.waitForTimeout(2500);
+        if (currentCount >= TARGET_PRODUCTS && !loadMoreClicked) break;
+      }
+      // ────────────────────────────────────────────────────────────────────
+
+      const productNodes = await page.$$(
+        '.product-card, .ProductCard, [data-testid="product-card"], .catalog-item'
+      );
 
       for (const node of productNodes) {
         try {
-          const productName = await node.$eval('.product-title', el => el.textContent?.trim() || '');
-          const brand = await node.$eval('.product-brand', el => el.textContent?.trim() || '').catch(() => null);
-          const imageUrl = await node.$eval('img', el => el.getAttribute('src') || '');
-          const offerUrl = await node.$eval('a', el => el.getAttribute('href') || '');
-          
-          const offerPriceText = await node.$eval('.price-current', el => el.textContent?.replace(/[^\d]/g, '') || '0');
-          const originalPriceText = await node.$eval('.price-old', el => el.textContent?.replace(/[^\d]/g, '') || '0').catch(() => offerPriceText);
-          
-          if (!productName || !imageUrl || !offerPriceText) continue;
+          const productName = await node.$eval(
+            '.product-title, .ProductTitle, [data-testid="product-name"], h2, h3',
+            (el) => el.textContent?.trim() || ''
+          ).catch(() => '');
+
+          if (!productName) continue;
+
+          const brand = await node.$eval(
+            '.product-brand, .ProductBrand, [data-testid="product-brand"]',
+            (el) => el.textContent?.trim() || null
+          ).catch(() => null);
+
+          const imageUrl = await node.$eval(
+            'img',
+            (el) => el.getAttribute('src') || el.getAttribute('data-src') || ''
+          ).catch(() => '');
+
+          const offerUrl = await node.$eval(
+            'a',
+            (el) => el.getAttribute('href') || ''
+          ).catch(() => '');
+
+          const offerPriceText = await node.$eval(
+            '.price-current, .price-offer, [data-testid="price-offer"], [class*="offer"], [class*="current"]',
+            (el) => el.textContent?.replace(/[^\d]/g, '') || '0'
+          ).catch(() => '0');
+
+          const originalPriceText = await node.$eval(
+            '.price-old, .price-normal, [data-testid="price-normal"], [class*="old"], [class*="normal"]',
+            (el) => el.textContent?.replace(/[^\d]/g, '') || '0'
+          ).catch(() => offerPriceText);
+
+          const offerPrice    = parseInt(offerPriceText, 10);
+          const originalPrice = parseInt(originalPriceText, 10);
+
+          if (!offerPrice || offerPrice === 0 || offerPrice >= originalPrice) continue;
 
           offers.push({
             productName,
             brand,
             imageUrl,
-            offerUrl: offerUrl.startsWith('http') ? offerUrl : `https://www.acuenta.cl${offerUrl}`,
-            offerPrice: parseInt(offerPriceText, 10),
-            originalPrice: parseInt(originalPriceText, 10),
-            categoryHint: null
+            offerUrl: offerUrl.startsWith('http') ? offerUrl : `${this.BASE_URL}${offerUrl}`,
+            offerPrice,
+            originalPrice,
+            categoryHint: null,
           });
         } catch (error: any) {
-            console.warn(`[AcuentaScraper] Error parsing node: ${error.message}`);
+          console.warn(`[AcuentaScraper] Error parsing node: ${error.message}`);
         }
       }
-
     } catch (error: any) {
       await browser.close();
       throw new Error(`[AcuentaScraper Playwright Error] ${error.message}`);
     }
 
     await browser.close();
+    console.log(`[AcuentaScraper] ✅ Total: ${offers.length} offers.`);
     return offers;
   }
 }

@@ -1,0 +1,50 @@
+name: Scraper — API (Jumbo, Líder, Santa Isabel)
+
+# Scrapers API: sin Playwright, sin browser, rápidos (~2 min/run)
+# Cada 30 minutos → datos frescos en las 3 tiendas más grandes
+# Consumo estimado: 2 min × 48 runs/día × 30 días = 2.880 min/mes
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"  # Cada 30 minutos
+  workflow_dispatch:
+
+# Secrets requeridos en Settings → Secrets → Actions:
+#   SUPABASE_URL            → URL del proyecto Supabase
+#   SUPABASE_SERVICE_ROLE_KEY → service_role key
+env:
+  NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+  SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+jobs:
+  scrape-api:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate secrets
+        run: |
+          [ -z "$NEXT_PUBLIC_SUPABASE_URL" ] && echo "::error::SUPABASE_URL secret missing" && exit 1
+          [ -z "$SUPABASE_SERVICE_ROLE_KEY" ] && echo "::error::SUPABASE_SERVICE_ROLE_KEY secret missing" && exit 1
+          echo "✅ Secrets OK"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      # Sin Playwright install — estos scrapers usan solo fetch()
+      - name: Scrape Jumbo
+        run: npx tsx scripts/scrapeAll.ts --store jumbo
+
+      - name: Scrape Líder
+        run: npx tsx scripts/scrapeAll.ts --store lider
+
+      - name: Scrape Santa Isabel
+        run: npx tsx scripts/scrapeAll.ts --store santa-isabel

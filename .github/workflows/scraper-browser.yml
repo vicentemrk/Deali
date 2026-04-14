@@ -1,0 +1,49 @@
+name: Scraper — Browser (Tottus, Unimarc, Acuenta)
+
+# Scrapers Playwright: requieren browser install (~400MB), más lentos (~10-12 min/run)
+# Cada 6 horas → 4 runs/día es suficiente para datos razonablemente frescos
+# Consumo estimado: 12 min × 4 runs/día × 30 días = 1.440 min/mes
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"  # 00:00, 06:00, 12:00, 18:00 UTC
+  workflow_dispatch:
+
+env:
+  NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+  SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+jobs:
+  scrape-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate secrets
+        run: |
+          [ -z "$NEXT_PUBLIC_SUPABASE_URL" ] && echo "::error::SUPABASE_URL secret missing" && exit 1
+          [ -z "$SUPABASE_SERVICE_ROLE_KEY" ] && echo "::error::SUPABASE_SERVICE_ROLE_KEY secret missing" && exit 1
+          echo "✅ Secrets OK"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium --with-deps
+
+      - name: Scrape Tottus
+        run: npx tsx scripts/scrapeAll.ts --store tottus
+
+      - name: Scrape Unimarc
+        run: npx tsx scripts/scrapeAll.ts --store unimarc
+
+      - name: Scrape Acuenta
+        run: npx tsx scripts/scrapeAll.ts --store acuenta

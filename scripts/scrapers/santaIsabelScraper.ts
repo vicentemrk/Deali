@@ -1,51 +1,101 @@
-import { chromium } from 'playwright';
 import { StoreScraper, RawOffer } from './types';
 
+const PAGE_SIZE = 50;
+const MAX_PAGES = 4; // 200 productos máximo
+
+/**
+ * SantaIsabelScraper — Cencosud Chile
+ *
+ * Santa Isabel pertenece al grupo Cencosud (mismo que Jumbo),
+ * por lo tanto usa la misma infraestructura VTEX.
+ * Reemplazamos el Playwright original por un fetch directo a la API VTEX,
+ * igual que JumboScraper. Más rápido, sin browser, sin OOM.
+ */
 export class SantaIsabelScraper implements StoreScraper {
   storeSlug = 'santa-isabel';
 
+  // Cencosud VTEX CDN para Santa Isabel
+  private readonly BASE_API =
+    'https://santaisabel.vteximg.com.br/api/catalog_system/pub/products/search' +
+    '?O=OrderByBestDiscountDESC&fq=specificationFilter_40:Oferta';
+
   async scrape(): Promise<RawOffer[]> {
-    const browser = await chromium.launch({ headless: true });
-    const page = await browser.newPage();
     const offers: RawOffer[] = [];
 
-    try {
-      await page.goto('https://www.santaisabel.cl/ofertas', { waitUntil: 'domcontentloaded' });
-      await page.waitForSelector('.product-card', { timeout: 10000 });
+    for (let page = 0; page < MAX_PAGES; page++) {
+      const from = page * PAGE_SIZE;
+      const to   = from + PAGE_SIZE - 1;
+      const url  = `${this.BASE_API}&_from=${from}&_to=${to}`;
 
-      const productNodes = await page.$$('.product-card');
+      try {
+        const response = await fetch(url, {
+          headers: {
+            Accept: 'application/json',
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
+              '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            Referer: 'https://www.santaisabel.cl/ofertas',
+          },
+          signal: AbortSignal.timeout(15_000),
+        });
 
-      for (const node of productNodes) {
-        try {
-          const productName = await node.$eval('.product-title', el => el.textContent?.trim() || '');
-          const brand = await node.$eval('.product-brand', el => el.textContent?.trim() || '').catch(() => null);
-          const imageUrl = await node.$eval('img', el => el.getAttribute('src') || '');
-          const offerUrl = await node.$eval('a', el => el.getAttribute('href') || '');
-
-          const offerPriceText = await node.$eval('.price-offer', el => el.textContent?.replace(/[^\d]/g, '') || '0');
-          const originalPriceText = await node.$eval('.price-normal', el => el.textContent?.replace(/[^\d]/g, '') || '0').catch(() => offerPriceText);
-
-          if (!productName || !imageUrl || !offerPriceText) continue;
-
-          offers.push({
-            productName,
-            brand,
-            imageUrl,
-            offerUrl: offerUrl.startsWith('http') ? offerUrl : `https://www.santaisabel.cl${offerUrl}`,
-            offerPrice: parseInt(offerPriceText, 10),
-            originalPrice: parseInt(originalPriceText, 10),
-            categoryHint: null,
-          });
-        } catch (error: any) {
-          console.warn(`[SantaIsabelScraper] Error parsing node: ${error.message}`);
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
         }
+
+        const products: any[] = await response.json();
+        if (!products.length) {
+          console.log(`[SantaIsabelScraper] Reached end at page ${page} (${offers.length} total).`);
+          break;
+        }
+
+        for (const product of products) {
+          try {
+            const item   = product.items?.[0];
+            const seller = item?.sellers?.[0]?.commertialOffer;
+            if (!item || !seller) continue;
+
+            const offerPrice: number    = seller.Price;
+            const originalPrice: number = seller.ListPrice;
+            if (!offerPrice || offerPrice === 0 || offerPrice >= originalPrice) continue;
+
+            // Build real product URL from VTEX linkText
+            const linkText: string = product.linkText || '';
+            const offerUrl = linkText
+              ? `https://www.santaisabel.cl/${linkText}/p`
+              : 'https://www.santaisabel.cl/ofertas';
+
+            const categoryRaw: string =
+              product.categories?.[0]?.replace(/^\/|\/$/g, '').split('/')[0] ?? null;
+
+            offers.push({
+              productName:   product.productName,
+              brand:         product.brand || null,
+              imageUrl:      item.images?.[0]?.imageUrl || '',
+              offerUrl,
+              offerPrice,
+              originalPrice,
+              categoryHint:  categoryRaw,
+            });
+          } catch (err: any) {
+            console.warn(`[SantaIsabelScraper] Error parsing product: ${err.message}`);
+          }
+        }
+
+        console.log(
+          `[SantaIsabelScraper] Page ${page + 1}: +${products.length} products (total: ${offers.length})`
+        );
+      } catch (error: any) {
+        console.error(`[SantaIsabelScraper] Fetch error on page ${page}: ${error.message}`);
+        break;
       }
-    } catch (error: any) {
-      await browser.close();
-      throw new Error(`[SantaIsabelScraper Playwright Error] ${error.message}`);
+
+      if (page < MAX_PAGES - 1) {
+        await new Promise((r) => setTimeout(r, 300));
+      }
     }
 
-    await browser.close();
+    console.log(`[SantaIsabelScraper] ✅ Total: ${offers.length} offers.`);
     return offers;
   }
 }

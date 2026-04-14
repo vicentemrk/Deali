@@ -6,6 +6,7 @@ import { AcuentaScraper } from './scrapers/acuentaScraper';
 import { TottusScraper } from './scrapers/tottusScraper';
 import { SantaIsabelScraper } from './scrapers/santaIsabelScraper';
 import { StoreScraper, RawOffer } from './scrapers/types';
+import { mapCategory } from './lib/categoryMapper';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -13,11 +14,20 @@ const supabase = createClient(
 );
 
 // ---------------------------------------------------------------------------
-// BATCH PROCESSING — reduces N×5 Supabase round-trips to ~5 per store
+// BATCH PROCESSING
+// ~5 queries por tienda total (vs N×5 anterior)
 // ---------------------------------------------------------------------------
 
-async function processOffers(storeId: string, storeSlug: string, offers: RawOffer[]) {
-  if (offers.length === 0) return;
+async function processOffers(
+  storeId: string,
+  storeSlug: string,
+  offers: RawOffer[],
+  categorySlugMap: Map<string, string>  // slug → UUID precargado al inicio
+) {
+  if (offers.length === 0) {
+    console.log(`[${storeSlug}] No offers to process.`);
+    return;
+  }
 
   console.log(`[${storeSlug}] Processing ${offers.length} offers...`);
 
@@ -33,7 +43,7 @@ async function processOffers(storeId: string, storeSlug: string, offers: RawOffe
     (existingProducts ?? []).map((p) => [p.name.trim().toLowerCase(), p.id])
   );
 
-  // ── Step 2: Separate new products from existing ────────────────────────
+  // ── Step 2: Split new vs existing products ─────────────────────────────
   const toInsert: typeof offers = [];
   const existing: { id: string; offer: RawOffer }[] = [];
 
@@ -47,19 +57,23 @@ async function processOffers(storeId: string, storeSlug: string, offers: RawOffe
     }
   }
 
-  // ── Step 3: Batch insert new products (1 query instead of N) ──────────
+  // ── Step 3: Batch insert new products con categoría resuelta ──────────
   let newProductIds: { id: string; name: string }[] = [];
   if (toInsert.length > 0) {
     const { data: inserted, error: insertErr } = await supabase
       .from('products')
       .insert(
-        toInsert.map((o) => ({
-          name: o.productName,
-          brand: o.brand,
-          image_url: o.imageUrl,
-          store_id: storeId,
-          category_id: null, // categoría asignada por el scraper más adelante
-        }))
+        toInsert.map((o) => {
+          const categorySlug = mapCategory(o.categoryHint);
+          const categoryId   = categorySlugMap.get(categorySlug) ?? null;
+          return {
+            name:        o.productName,
+            brand:       o.brand,
+            image_url:   o.imageUrl,
+            store_id:    storeId,
+            category_id: categoryId,
+          };
+        })
       )
       .select('id, name');
 
@@ -70,7 +84,7 @@ async function processOffers(storeId: string, storeSlug: string, offers: RawOffe
     }
   }
 
-  // Build full product ID list for offers upsert
+  // Build full list: existing + newly inserted
   const allProductIds: { id: string; offer: RawOffer }[] = [
     ...existing,
     ...newProductIds.map((p) => ({
@@ -83,9 +97,9 @@ async function processOffers(storeId: string, storeSlug: string, offers: RawOffe
 
   if (allProductIds.length === 0) return;
 
-  const now = new Date();
-  const today = now.toISOString().split('T')[0];
-  const endDate = new Date(now);
+  const now        = new Date();
+  const today      = now.toISOString().split('T')[0];
+  const endDate    = new Date(now);
   endDate.setDate(endDate.getDate() + 7);
   const endDateStr = endDate.toISOString().split('T')[0];
 
@@ -96,15 +110,15 @@ async function processOffers(storeId: string, storeSlug: string, offers: RawOffe
         ? (((offer.originalPrice - offer.offerPrice) / offer.originalPrice) * 100).toFixed(2)
         : '0.00';
     return {
-      product_id: productId,
+      product_id:     productId,
       original_price: offer.originalPrice,
-      offer_price: offer.offerPrice,
-      discount_pct: discountPct,
-      offer_url: offer.offerUrl,
-      start_date: today,
-      end_date: endDateStr,
-      is_active: true,
-      scraped_at: now.toISOString(),
+      offer_price:    offer.offerPrice,
+      discount_pct:   discountPct,
+      offer_url:      offer.offerUrl,
+      start_date:     today,
+      end_date:       endDateStr,
+      is_active:      true,
+      scraped_at:     now.toISOString(),
     };
   });
 
@@ -116,13 +130,12 @@ async function processOffers(storeId: string, storeSlug: string, offers: RawOffe
     console.error(`[${storeSlug}] Batch offer upsert failed: ${upsertErr.message}`);
   }
 
-  // ── Step 5: Batch price history via RPC (dedup function, 1 call each) ─
-  // Using Promise.all here is fine — these are fire-and-forget price snapshots
+  // ── Step 5: Price history deduplicada vía RPC ─────────────────────────
   await Promise.allSettled(
     allProductIds.map(({ id: productId, offer }) =>
       supabase.rpc('insert_price_if_changed', {
         p_product_id: productId,
-        p_price: offer.offerPrice,
+        p_price:      offer.offerPrice,
       })
     )
   );
@@ -133,7 +146,7 @@ async function processOffers(storeId: string, storeSlug: string, offers: RawOffe
 }
 
 // ---------------------------------------------------------------------------
-// BROWSER POOL — run Playwright scrapers in batches of 2 to avoid OOM
+// BROWSER POOL — batches de 2 para no reventar la RAM del runner de CI
 // ---------------------------------------------------------------------------
 
 async function runInBatches<T>(
@@ -152,40 +165,51 @@ async function runInBatches<T>(
 // ---------------------------------------------------------------------------
 
 async function main() {
-  // Pre-fetch all store IDs in 1 query (shared across all scrapers)
-  const { data: storesData, error: storesErr } = await supabase
-    .from('stores')
-    .select('id, slug');
+  console.log('[ScrapeAll] Iniciando...');
 
-  if (storesErr || !storesData) {
-    throw new Error(`[ScrapeAll] Failed to fetch stores: ${storesErr?.message}`);
-  }
+  // ── Pre-fetch global: stores y categories (1 query cada uno) ──────────
+  const [storesResult, categoriesResult] = await Promise.all([
+    supabase.from('stores').select('id, slug'),
+    supabase.from('categories').select('id, slug'),
+  ]);
 
-  const storeIdMap = new Map<string, string>(storesData.map((s) => [s.slug, s.id]));
+  if (storesResult.error) throw new Error(`Failed to fetch stores: ${storesResult.error.message}`);
+  if (categoriesResult.error) throw new Error(`Failed to fetch categories: ${categoriesResult.error.message}`);
+
+  const storeIdMap = new Map<string, string>(
+    (storesResult.data ?? []).map((s) => [s.slug, s.id])
+  );
+
+  // categorySlugMap: slug → UUID (ej. 'lacteos' → 'uuid-xxx')
+  const categorySlugMap = new Map<string, string>(
+    (categoriesResult.data ?? []).map((c) => [c.slug, c.id])
+  );
+
+  console.log(`[ScrapeAll] ${storeIdMap.size} stores, ${categorySlugMap.size} categories loaded.`);
 
   const scrapers: StoreScraper[] = [
-    new JumboScraper(),
-    new LiderScraper(),
-    new UnimarcScraper(),
-    new AcuentaScraper(),
-    new TottusScraper(),
-    new SantaIsabelScraper(),
+    new JumboScraper(),        // API — VTEX Cencosud
+    new LiderScraper(),        // API — VTEX Walmart Chile
+    new SantaIsabelScraper(),  // API — VTEX Cencosud (convertido desde Playwright)
+    new UnimarcScraper(),      // Playwright — SMU
+    new AcuentaScraper(),      // Playwright — SMU
+    new TottusScraper(),       // Playwright — Falabella
   ];
 
-  // -- Optional --store flag to target a specific scraper
-  const args = process.argv.slice(2);
-  const storeArg =
-    args.indexOf('--store') !== -1 ? args[args.indexOf('--store') + 1] : null;
-
+  // Filtro opcional por --store flag
+  const args      = process.argv.slice(2);
+  const storeArg  = args.indexOf('--store') !== -1 ? args[args.indexOf('--store') + 1] : null;
   const targetScrapers = storeArg
     ? scrapers.filter((s) => s.storeSlug === storeArg)
     : scrapers;
 
   let successCount = 0;
-  let failCount = 0;
+  let failCount    = 0;
 
-  // Playwright scrapers consume ~400-600MB RAM each.
-  // GitHub Actions runners have ~7GB; cap parallel browsers at 2.
+  // Los scrapers API (Jumbo, Líder, SantaIsabel) son ligeros — pueden correr en batch de 3.
+  // Los de Playwright consumen ~400-600MB RAM cada uno — max 2 simultáneos.
+  // Orden en el array: primero los 3 de API, luego los 3 de Playwright.
+  // runInBatches(×, 2) ya garantiza el límite.
   await runInBatches(targetScrapers, 2, async (scraper) => {
     const storeId = storeIdMap.get(scraper.storeSlug);
     if (!storeId) {
@@ -195,9 +219,9 @@ async function main() {
     }
 
     try {
-      console.log(`[ScrapeAll] → Scraping ${scraper.storeSlug}...`);
+      console.log(`\n[ScrapeAll] → Scraping ${scraper.storeSlug}...`);
       const offers = await scraper.scrape();
-      await processOffers(storeId, scraper.storeSlug, offers);
+      await processOffers(storeId, scraper.storeSlug, offers, categorySlugMap);
       successCount++;
     } catch (err: any) {
       failCount++;
@@ -210,7 +234,7 @@ async function main() {
   );
 
   if (failCount > 0) {
-    process.exit(1); // Signal failure to GitHub Actions
+    process.exit(1); // GitHub Actions marca el run como fallido
   }
 }
 
