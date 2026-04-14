@@ -12,91 +12,157 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-async function processOffers(storeSlug: string, offers: RawOffer[]) {
-  // Get store ID
-  const { data: store, error: storeError } = await supabase
-    .from('stores')
-    .select('id')
-    .eq('slug', storeSlug)
-    .single();
+// ---------------------------------------------------------------------------
+// BATCH PROCESSING — reduces N×5 Supabase round-trips to ~5 per store
+// ---------------------------------------------------------------------------
 
-  if (storeError || !store) throw new Error(`Store not found: ${storeSlug}`);
+async function processOffers(storeId: string, storeSlug: string, offers: RawOffer[]) {
+  if (offers.length === 0) return;
 
-  // Fetch unknown category for fallback (assuming there's an 'Otros' category, or we insert null)
+  console.log(`[${storeSlug}] Processing ${offers.length} offers...`);
+
+  // ── Step 1: Fetch all existing products for this store in 1 query ──────
+  const { data: existingProducts, error: fetchErr } = await supabase
+    .from('products')
+    .select('id, name')
+    .eq('store_id', storeId);
+
+  if (fetchErr) throw new Error(`[${storeSlug}] Failed to fetch products: ${fetchErr.message}`);
+
+  const productMap = new Map<string, string>(
+    (existingProducts ?? []).map((p) => [p.name.trim().toLowerCase(), p.id])
+  );
+
+  // ── Step 2: Separate new products from existing ────────────────────────
+  const toInsert: typeof offers = [];
+  const existing: { id: string; offer: RawOffer }[] = [];
+
   for (const offer of offers) {
-    try {
-      // 1. Upsert product (approximate match by name and store)
-      let { data: product, error: productSearchError } = await supabase
-        .from('products')
-        .select('id')
-        .eq('store_id', store.id)
-        .eq('name', offer.productName)
-        .single();
-      
-      if (!product) {
-        const { data: newProd, error: newProdError } = await supabase
-          .from('products')
-          .insert({
-            name: offer.productName,
-            brand: offer.brand,
-            image_url: offer.imageUrl,
-            store_id: store.id,
-            category_id: null // Fallback
-          })
-          .select('id')
-          .single();
-        if (newProdError) throw newProdError;
-        product = newProd;
-      }
-
-      // 2. Upsert Offer
-      const discountPct = offer.originalPrice > offer.offerPrice 
-        ? ((offer.originalPrice - offer.offerPrice) / offer.originalPrice) * 100 
-        : 0;
-
-      const endDate = new Date();
-      endDate.setDate(endDate.getDate() + 7); // Assume 7 days offer length if not specified on site
-
-      const { error: offerError } = await supabase
-        .from('offers')
-        .upsert({
-          product_id: product.id,
-          original_price: offer.originalPrice,
-          offer_price: offer.offerPrice,
-          discount_pct: discountPct.toFixed(2),
-          offer_url: offer.offerUrl,
-          start_date: new Date().toISOString().split('T')[0],
-          end_date: endDate.toISOString().split('T')[0],
-          is_active: true,
-          scraped_at: new Date().toISOString()
-        }, { onConflict: 'product_id' }); // Assuming one active offer per product
-      
-      if (offerError) throw offerError;
-
-      // 3. Price History
-      await supabase.from('price_history').insert({
-        product_id: product.id,
-        price: offer.offerPrice
-      });
-
-      // 4. Broadcast Realtime
-      await supabase.channel('new-offers').send({
-        type: 'broadcast',
-        event: 'new-offer',
-        payload: {
-          storeSlug,
-          productName: offer.productName,
-          offerPrice: offer.offerPrice,
-        }
-      });
-
-    } catch (error: any) {
-      console.error(`[ScrapeAll] Error processing offer ${offer.productName}: ${error.message}`);
+    const key = offer.productName.trim().toLowerCase();
+    const pid = productMap.get(key);
+    if (pid) {
+      existing.push({ id: pid, offer });
+    } else {
+      toInsert.push(offer);
     }
+  }
+
+  // ── Step 3: Batch insert new products (1 query instead of N) ──────────
+  let newProductIds: { id: string; name: string }[] = [];
+  if (toInsert.length > 0) {
+    const { data: inserted, error: insertErr } = await supabase
+      .from('products')
+      .insert(
+        toInsert.map((o) => ({
+          name: o.productName,
+          brand: o.brand,
+          image_url: o.imageUrl,
+          store_id: storeId,
+          category_id: null, // categoría asignada por el scraper más adelante
+        }))
+      )
+      .select('id, name');
+
+    if (insertErr) {
+      console.error(`[${storeSlug}] Batch product insert failed: ${insertErr.message}`);
+    } else {
+      newProductIds = inserted ?? [];
+    }
+  }
+
+  // Build full product ID list for offers upsert
+  const allProductIds: { id: string; offer: RawOffer }[] = [
+    ...existing,
+    ...newProductIds.map((p) => ({
+      id: p.id,
+      offer: toInsert.find(
+        (o) => o.productName.trim().toLowerCase() === p.name.trim().toLowerCase()
+      )!,
+    })),
+  ].filter((x) => x.offer != null);
+
+  if (allProductIds.length === 0) return;
+
+  const now = new Date();
+  const today = now.toISOString().split('T')[0];
+  const endDate = new Date(now);
+  endDate.setDate(endDate.getDate() + 7);
+  const endDateStr = endDate.toISOString().split('T')[0];
+
+  // ── Step 4: Batch upsert offers (1 query) ─────────────────────────────
+  const offersPayload = allProductIds.map(({ id: productId, offer }) => {
+    const discountPct =
+      offer.originalPrice > offer.offerPrice
+        ? (((offer.originalPrice - offer.offerPrice) / offer.originalPrice) * 100).toFixed(2)
+        : '0.00';
+    return {
+      product_id: productId,
+      original_price: offer.originalPrice,
+      offer_price: offer.offerPrice,
+      discount_pct: discountPct,
+      offer_url: offer.offerUrl,
+      start_date: today,
+      end_date: endDateStr,
+      is_active: true,
+      scraped_at: now.toISOString(),
+    };
+  });
+
+  const { error: upsertErr } = await supabase
+    .from('offers')
+    .upsert(offersPayload, { onConflict: 'product_id' });
+
+  if (upsertErr) {
+    console.error(`[${storeSlug}] Batch offer upsert failed: ${upsertErr.message}`);
+  }
+
+  // ── Step 5: Batch price history via RPC (dedup function, 1 call each) ─
+  // Using Promise.all here is fine — these are fire-and-forget price snapshots
+  await Promise.allSettled(
+    allProductIds.map(({ id: productId, offer }) =>
+      supabase.rpc('insert_price_if_changed', {
+        p_product_id: productId,
+        p_price: offer.offerPrice,
+      })
+    )
+  );
+
+  console.log(
+    `[${storeSlug}] ✅ Done — ${existing.length} updated, ${newProductIds.length} new products`
+  );
+}
+
+// ---------------------------------------------------------------------------
+// BROWSER POOL — run Playwright scrapers in batches of 2 to avoid OOM
+// ---------------------------------------------------------------------------
+
+async function runInBatches<T>(
+  items: T[],
+  batchSize: number,
+  fn: (item: T) => Promise<void>
+): Promise<void> {
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize);
+    await Promise.allSettled(batch.map(fn));
   }
 }
 
+// ---------------------------------------------------------------------------
+// MAIN
+// ---------------------------------------------------------------------------
+
 async function main() {
+  // Pre-fetch all store IDs in 1 query (shared across all scrapers)
+  const { data: storesData, error: storesErr } = await supabase
+    .from('stores')
+    .select('id, slug');
+
+  if (storesErr || !storesData) {
+    throw new Error(`[ScrapeAll] Failed to fetch stores: ${storesErr?.message}`);
+  }
+
+  const storeIdMap = new Map<string, string>(storesData.map((s) => [s.slug, s.id]));
+
   const scrapers: StoreScraper[] = [
     new JumboScraper(),
     new LiderScraper(),
@@ -106,37 +172,49 @@ async function main() {
     new SantaIsabelScraper(),
   ];
 
+  // -- Optional --store flag to target a specific scraper
   const args = process.argv.slice(2);
-  const storeArg = args.indexOf('--store') !== -1 ? args[args.indexOf('--store') + 1] : null;
+  const storeArg =
+    args.indexOf('--store') !== -1 ? args[args.indexOf('--store') + 1] : null;
 
-  const targetScrapers = storeArg 
-    ? scrapers.filter(s => s.storeSlug === storeArg)
+  const targetScrapers = storeArg
+    ? scrapers.filter((s) => s.storeSlug === storeArg)
     : scrapers;
-
-  const results = await Promise.allSettled(
-    targetScrapers.map(async (scraper) => {
-      const offers = await scraper.scrape();
-      await processOffers(scraper.storeSlug, offers);
-      return offers.length;
-    })
-  );
 
   let successCount = 0;
   let failCount = 0;
 
-  for (const result of results) {
-    if (result.status === 'fulfilled') {
-      successCount++;
-    } else {
+  // Playwright scrapers consume ~400-600MB RAM each.
+  // GitHub Actions runners have ~7GB; cap parallel browsers at 2.
+  await runInBatches(targetScrapers, 2, async (scraper) => {
+    const storeId = storeIdMap.get(scraper.storeSlug);
+    if (!storeId) {
+      console.error(`[ScrapeAll] Store not found in DB: ${scraper.storeSlug}`);
       failCount++;
-      console.error(`[ScrapeAll] Scraper failed: ${result.reason}`);
+      return;
     }
-  }
 
-  console.log(`Scraping completo: ${successCount} exitosos, ${failCount} fallidos.`);
+    try {
+      console.log(`[ScrapeAll] → Scraping ${scraper.storeSlug}...`);
+      const offers = await scraper.scrape();
+      await processOffers(storeId, scraper.storeSlug, offers);
+      successCount++;
+    } catch (err: any) {
+      failCount++;
+      console.error(`[ScrapeAll] ✗ ${scraper.storeSlug} failed: ${err.message}`);
+    }
+  });
+
+  console.log(
+    `\n[ScrapeAll] Completo: ${successCount} exitosos, ${failCount} fallidos.`
+  );
+
+  if (failCount > 0) {
+    process.exit(1); // Signal failure to GitHub Actions
+  }
 }
 
-main().catch(error => {
+main().catch((error) => {
   console.error(`[ScrapeAll Global Error] ${error}`);
   process.exit(1);
 });

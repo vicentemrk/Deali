@@ -1,4 +1,5 @@
 import React from 'react';
+import Image from 'next/image';
 
 interface OfferCardProps {
   offer: {
@@ -44,12 +45,13 @@ export function OfferCard({ offer }: OfferCardProps) {
       )}
 
       {/* Image Area */}
-      <div className="relative w-full h-44 mt-12 mb-4 bg-transparent z-10 flex items-center justify-center mix-blend-multiply group-hover:scale-110 transition-transform duration-500 ease-out">
-        <img
-          src={offer.product_image_url}
+      <div className="relative w-full h-44 mt-12 mb-4 z-10 group-hover:scale-110 transition-transform duration-500 ease-out">
+        <Image
+          src={offer.product_image_url || '/placeholder-product.png'}
           alt={offer.product_name}
-          className="max-w-full max-h-full object-contain filter drop-shadow-sm"
-          loading="lazy"
+          fill
+          sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 300px"
+          className="object-contain drop-shadow-sm mix-blend-multiply"
         />
       </div>
 

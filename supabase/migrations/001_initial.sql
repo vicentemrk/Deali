@@ -94,6 +94,7 @@ CREATE INDEX idx_products_category_id ON products(category_id);
 CREATE INDEX idx_products_store_id ON products(store_id);
 
 -- Vista SQL activa_offers_view
+-- LEFT JOIN categories: ofertas sin categoría aparecen como 'General'
 CREATE OR REPLACE VIEW activa_offers_view AS
 SELECT 
     o.id AS offer_id,
@@ -115,10 +116,10 @@ SELECT
     s.slug AS store_slug,
     s.color_hex AS store_color_hex,
     s.logo_url AS store_logo_url,
-    c.name AS category_name,
-    c.slug AS category_slug
+    COALESCE(c.name, 'General') AS category_name,
+    COALESCE(c.slug, 'general') AS category_slug
 FROM offers o
 JOIN products p ON o.product_id = p.id
 JOIN stores s ON p.store_id = s.id
-JOIN categories c ON p.category_id = c.id
-WHERE o.is_active = true AND o.end_date >= CURRENT_DATE;
+LEFT JOIN categories c ON p.category_id = c.id  -- era INNER JOIN, ocultaba sin-categoría
+WHERE o.is_active = true AND o.end_date >= CURRENT_DATE;

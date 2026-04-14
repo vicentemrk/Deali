@@ -1,5 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { OfferCard } from './OfferCard';
 import { ArrowRight } from 'lucide-react';
 
@@ -21,7 +22,15 @@ export function StoreSection({ store, offers }: StoreSectionProps) {
       <div className="flex items-center justify-between mb-6 bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
         <div className="flex items-center gap-3">
           {store.logo_url && (
-             <img src={store.logo_url} alt={store.name} className="w-10 h-10 rounded-full object-cover" />
+            <div className="relative w-10 h-10 rounded-full overflow-hidden flex-shrink-0">
+              <Image
+                src={store.logo_url}
+                alt={store.name}
+                fill
+                sizes="40px"
+                className="object-cover"
+              />
+            </div>
           )}
           <h2 className="text-xl font-bold" style={{ color: store.color_hex }}>
             {store.name}

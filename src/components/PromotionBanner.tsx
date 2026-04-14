@@ -1,4 +1,5 @@
 import React from 'react';
+import Image from 'next/image';
 
 interface PromotionBannerProps {
   promotion: {
@@ -17,11 +18,14 @@ export function PromotionBanner({ promotion }: PromotionBannerProps) {
   return (
     <div className="relative rounded-2xl overflow-hidden bg-bg-card border border-border shadow-md flex flex-col md:flex-row items-center mb-8">
       {promotion.image_url && (
-        <div className="w-full md:w-1/3 h-48 md:h-full relative">
-          <img 
-            src={promotion.image_url} 
+        <div className="relative w-full md:w-1/3 h-48 md:h-56">
+          <Image
+            src={promotion.image_url}
             alt={promotion.title}
-            className="w-full h-full object-cover absolute inset-0"
+            fill
+            sizes="(max-width: 768px) 100vw, 33vw"
+            className="object-cover"
+            priority
           />
         </div>
       )}

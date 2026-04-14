@@ -5,12 +5,32 @@ on:
     - cron: "0 * * * *" # Cada hora
   workflow_dispatch: # Ejecutar manualmente desde la UI de Github
 
+# Secrets requeridos en Settings → Secrets → Actions:
+#   SUPABASE_URL           → URL del proyecto (https://xxxx.supabase.co)
+#   SUPABASE_SERVICE_ROLE_KEY → service_role key (nunca la anon key)
+env:
+  NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+  SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
 jobs:
   scrape:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+
+      - name: Validate secrets
+        run: |
+          if [ -z "$NEXT_PUBLIC_SUPABASE_URL" ]; then
+            echo "::error::Secret SUPABASE_URL is not set. Go to Settings → Secrets → Actions."
+            exit 1
+          fi
+          if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "::error::Secret SUPABASE_SERVICE_ROLE_KEY is not set. Go to Settings → Secrets → Actions."
+            exit 1
+          fi
+          echo "✅ Secrets validated."
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -25,7 +45,4 @@ jobs:
         run: npx playwright install chromium --with-deps
 
       - name: Run Scraper
-        run: npx ts-node scripts/scrapeAll.ts
-        env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: npx tsx scripts/scrapeAll.ts
