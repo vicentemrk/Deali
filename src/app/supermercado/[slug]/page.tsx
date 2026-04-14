@@ -2,6 +2,9 @@ import React from 'react';
 import { OfferCard } from '@/components/OfferCard';
 import { Footer } from '@/components/Footer';
 
+export const revalidate = 1800; // ISR: regenera la página cada 30 min desde CDN
+
+
 interface PageProps {
   params: { slug: string };
   searchParams: { page?: string };

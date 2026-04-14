@@ -28,19 +28,8 @@ export default async function BuscarPage({ searchParams }: PageProps) {
      offers = data.data;
   }
 
-  // Si la API actual no soporta ?q=, filtramos en el cliente como fallback temporal
-  // Esto asegura que la búsqueda funcione inmediatamente.
-  const isFallbackFilter = true;
-  let finalOffers = offers;
 
-  if (isFallbackFilter && query) {
-     const lowerQ = query.toLowerCase();
-     finalOffers = offers.filter((o: any) => 
-       o.product_name.toLowerCase().includes(lowerQ) || 
-       o.brand?.toLowerCase().includes(lowerQ) ||
-       o.store_name?.toLowerCase().includes(lowerQ)
-     );
-  }
+
 
   return (
     <div className="min-h-screen bg-bg-page font-sans text-gray-900 flex flex-col">
@@ -48,7 +37,7 @@ export default async function BuscarPage({ searchParams }: PageProps) {
         <h1 className="text-3xl font-bold mb-2 text-gray-800">Resultados de búsqueda</h1>
         <p className="text-gray-500 mb-8">Buscando: <span className="font-semibold text-purple">"{query}"</span></p>
         
-        {finalOffers.length === 0 ? (
+        {offers.length === 0 ? (
           <div className="bg-white p-8 rounded-xl border border-gray-100 text-center shadow-sm">
             <span className="text-4xl mb-4 block">🔍</span>
             <h2 className="text-xl font-bold text-gray-800 mb-2">No encontramos resultados</h2>
@@ -56,11 +45,12 @@ export default async function BuscarPage({ searchParams }: PageProps) {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {finalOffers.map((offer: any) => (
+            {offers.map((offer: any) => (
               <OfferCard key={offer.offer_id} offer={offer} />
             ))}
           </div>
         )}
+
       </main>
       <Footer />
     </div>
