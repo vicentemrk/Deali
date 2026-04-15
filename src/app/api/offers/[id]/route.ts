@@ -20,6 +20,9 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       cacheKey,
       async () => {
         const supabase = createServerSupabaseClient();
+        if (!supabase) {
+          throw new Error('Supabase client initialization failed');
+        }
         
         const { data: offer, error: offerError } = await supabase
           .from('activa_offers_view')

@@ -26,6 +26,9 @@ export async function GET(req: NextRequest) {
       cacheKey,
       async () => {
         const supabase = createServerSupabaseClient();
+        if (!supabase) {
+          throw new Error('Supabase client initialization failed');
+        }
         
         let query = supabase
           .from('activa_offers_view')

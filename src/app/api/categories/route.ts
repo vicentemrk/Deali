@@ -22,6 +22,7 @@ export async function GET() {
       'categories:tree',
       async () => {
         const supabase = createServerSupabaseClient();
+        if (!supabase) throw new Error('Supabase client initialization failed');
         const { data, error } = await supabase.from('categories').select('*').order('name');
         
         if (error) throw error;

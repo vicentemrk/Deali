@@ -105,10 +105,15 @@ export class LiderScraper implements StoreScraper {
       const cookieHeader = process.env.LIDER_COOKIE?.trim();
       const useLegacyVtex = process.env.LIDER_USE_VTEX === '1';
 
+      console.log('[LiderScraper] Attempting HTML fallback method...');
       const htmlOffers = await fetchLiderHtmlOffers(cookieHeader);
-      if (htmlOffers.length > 0) return htmlOffers;
+      if (htmlOffers.length > 0) {
+        console.log(`[LiderScraper] ✓ HTML fallback successful: ${htmlOffers.length} offers`);
+        return htmlOffers;
+      }
 
       if (useLegacyVtex) {
+        console.log('[LiderScraper] Attempting legacy VTEX method...');
         const offers = await fetchVtexMultiCategory({
           cdnBase:      'https://lider.vteximg.com.br',
           fallbackBases:[
@@ -124,23 +129,33 @@ export class LiderScraper implements StoreScraper {
           extraHeaders: cookieHeader ? { Cookie: cookieHeader } : undefined,
         });
 
-        if (offers.length > 0) return offers;
+        if (offers.length > 0) {
+          console.log(`[LiderScraper] ✓ Legacy VTEX successful: ${offers.length} offers`);
+          return offers;
+        }
       }
 
-      if (!cookieHeader) {
-        console.warn('[LiderScraper] Challenge detected. Set LIDER_COOKIE in .env.local to reuse a valid browser session.');
-      }
-
-      return scrapeStoreWithPlaywrightFallback({
+      console.log('[LiderScraper] Attempting Playwright fallback method...');
+      const playwrightOffers = await scrapeStoreWithPlaywrightFallback({
         logTag: 'LiderScraper',
         baseUrl: 'https://www.lider.cl',
         categoryUrls: LIDER_PROMO_URLS,
         maxProducts: 50,
       });
+      
+      if (playwrightOffers.length > 0) {
+        console.log(`[LiderScraper] ✓ Playwright fallback successful: ${playwrightOffers.length} offers`);
+        return playwrightOffers;
+      }
+
+      // All methods exhausted
+      const errorMsg = `All scraping methods exhausted (HTML failed, VTEX ${useLegacyVtex ? 'failed' : 'skipped'}, Playwright failed). ${cookieHeader ? 'Cookie exists' : 'No LIDER_COOKIE in env'}.`;
+      console.warn(`[LiderScraper] ⚠️ ${errorMsg}`);
+      throw new Error(errorMsg);
     } catch (err: any) {
-      // Graceful degradation: Lider is "Pendiente" — don't fail the pipeline
-      console.warn(`[LiderScraper] ⚠️ Skipped — ${err.message}. Requires mobile/official API investigation.`);
-      return [];
+      const errorMsg = err.message || String(err);
+      console.error(`[LiderScraper] ✗ Fatal error: ${errorMsg}`);
+      throw err;
     }
   }
 }

@@ -9,6 +9,9 @@ const execPromise = util.promisify(exec);
 /**
  * POST request to trigger the scraper for a specific store.
  */
+// Valid store slugs — whitelist to prevent command injection
+const VALID_STORE_SLUGS = new Set(['jumbo', 'lider', 'santa-isabel', 'tottus', 'unimarc', 'acuenta']);
+
 export async function POST(req: NextRequest) {
   try {
     const { storeSlug } = await req.json();
@@ -17,7 +20,15 @@ export async function POST(req: NextRequest) {
       return apiError('MISSING_STORE_SLUG', 'storeSlug is required', 400);
     }
     
+    // Sanitize storeSlug — only allow whitelisted values (prevent command injection)
+    if (!VALID_STORE_SLUGS.has(storeSlug)) {
+      return apiError('INVALID_STORE_SLUG', `Invalid store slug: ${storeSlug}`, 400);
+    }
+    
     const supabase = createServerSupabaseClient();
+    if (!supabase) {
+      return apiError('SUPABASE_INIT_FAILED', 'Supabase client initialization failed', 500);
+    }
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     
     if (authError || !user) {

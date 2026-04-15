@@ -12,6 +12,9 @@ export async function GET() {
       'stores:list',
       async () => {
         const supabase = createServerSupabaseClient();
+        if (!supabase) {
+          throw new Error('Supabase client initialization failed');
+        }
         
         const { data: stores, error: storesError } = await supabase
           .from('stores')

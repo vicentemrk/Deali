@@ -10,6 +10,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const supabase = createServerSupabaseClient();
+    if (!supabase) throw new Error('Supabase client initialization failed');
     
     const { data, error } = await supabase
       .from('categories')

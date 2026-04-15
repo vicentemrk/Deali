@@ -10,6 +10,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const supabase = createServerSupabaseClient();
+    if (!supabase) throw new Error('Supabase client initialization failed');
     
     // Auth check is handled by middleware but we ensure user exists
     const { data: { user }, error: authError } = await supabase.auth.getUser();

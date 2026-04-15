@@ -11,6 +11,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     const offerId = params.id;
     const body = await req.json();
     const supabase = createServerSupabaseClient();
+    if (!supabase) throw new Error('Supabase client initialization failed');
     
     const { data, error } = await supabase
       .from('offers')
@@ -35,6 +36,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
   try {
     const offerId = params.id;
     const supabase = createServerSupabaseClient();
+    if (!supabase) throw new Error('Supabase client initialization failed');
     
     const { error } = await supabase
       .from('offers')

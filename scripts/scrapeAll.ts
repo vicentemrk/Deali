@@ -13,7 +13,7 @@ import * as path from 'path';
 // Cargar .env.local
 dotenv.config({ path: path.join(__dirname, '..', '.env.local') });
 
-const MAX_OFFERS_PER_STORE = 10;
+const SCRAPE_LIMIT = parseInt(process.env.SCRAPE_LIMIT || '10', 10);
 
 const CANONICAL_CATEGORIES = [
   { name: 'Bebidas', slug: 'bebidas' },
@@ -32,7 +32,7 @@ const CANONICAL_CATEGORIES = [
   { name: 'Despensa', slug: 'despensa' },
 ];
 
-function selectOffersForTest(rawOffers: RawOffer[]): RawOffer[] {
+function selectOffersForScrape(rawOffers: RawOffer[]): RawOffer[] {
   const chosenByCategory = new Map<string, RawOffer>();
   const remainder: RawOffer[] = [];
 
@@ -46,12 +46,12 @@ function selectOffersForTest(rawOffers: RawOffer[]): RawOffer[] {
   }
 
   const selected = [...chosenByCategory.values()];
-  const missing = MAX_OFFERS_PER_STORE - selected.length;
+  const missing = SCRAPE_LIMIT - selected.length;
   if (missing > 0) {
     selected.push(...remainder.slice(0, missing));
   }
 
-  return selected.slice(0, MAX_OFFERS_PER_STORE);
+  return selected.slice(0, SCRAPE_LIMIT);
 }
 
 const supabase = createClient(
@@ -69,12 +69,12 @@ async function processOffers(
   storeSlug: string,
   offers: RawOffer[],
   categorySlugMap: Map<string, string>  // slug → UUID precargado al inicio
-) {
-  const targetOffers = selectOffersForTest(offers);
+): Promise<number> {
+  const targetOffers = selectOffersForScrape(offers);
 
   if (targetOffers.length === 0) {
     console.log(`[${storeSlug}] No offers to process.`);
-    return;
+    return 0;
   }
 
   console.log(`[${storeSlug}] Processing ${targetOffers.length}/${offers.length} offers...`);
@@ -187,7 +187,7 @@ async function processOffers(
     })),
   ].filter((x) => x.offer != null);
 
-  if (allProductIds.length === 0) return;
+  if (allProductIds.length === 0) return 0;
 
   const now        = new Date();
   const today      = now.toISOString().split('T')[0];
@@ -233,6 +233,50 @@ async function processOffers(
   console.log(
     `[${storeSlug}] ✅ Done — ${existing.length} updated, ${newProductIds.length} new products`
   );
+  
+  return allProductIds.length;
+}
+
+// ---------------------------------------------------------------------------
+// LOGGING
+// ---------------------------------------------------------------------------
+
+async function logScrapeRun(
+  storeSlug: string,
+  status: 'started' | 'completed' | 'failed',
+  metadata: {
+    offers_found?: number;
+    offers_saved?: number;
+    error?: string;
+    duration_ms?: number;
+  }
+) {
+  try {
+    if (status === 'started') {
+      const { error } = await supabase.from('scrape_logs').insert({
+        store_slug: storeSlug,
+        started_at: new Date().toISOString(),
+      });
+      if (error) console.warn(`[LoggingError] Failed to log start: ${error.message}`);
+    } else {
+      const { error } = await supabase
+        .from('scrape_logs')
+        .update({
+          finished_at: new Date().toISOString(),
+          offers_found: metadata.offers_found ?? 0,
+          offers_saved: metadata.offers_saved ?? 0,
+          error: metadata.error ?? null,
+          run_duration_ms: metadata.duration_ms ?? 0,
+        })
+        .eq('store_slug', storeSlug)
+        .is('finished_at', null)
+        .order('started_at', { ascending: false })
+        .limit(1);
+      if (error) console.warn(`[LoggingError] Failed to log completion: ${error.message}`);
+    }
+  } catch (err) {
+    console.warn(`[LoggingError] Logging failed: ${err}`);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -317,14 +361,39 @@ async function main() {
       return;
     }
 
+    const startTime = Date.now();
+    let offersFound = 0;
+    let offersSaved = 0;
+    let errorMsg: string | undefined;
+
     try {
       console.log(`\n[ScrapeAll] → Scraping ${scraper.storeSlug}...`);
+      await logScrapeRun(scraper.storeSlug, 'started', {});
+      
       const offers = await scraper.scrape();
-      await processOffers(storeId, scraper.storeSlug, offers, categorySlugMap);
+      offersFound = offers.length;
+      offersSaved = await processOffers(storeId, scraper.storeSlug, offers, categorySlugMap);
+      
+      const duration = Date.now() - startTime;
+      await logScrapeRun(scraper.storeSlug, 'completed', {
+        offers_found: offersFound,
+        offers_saved: offersSaved,
+        duration_ms: duration,
+      });
+      
       successCount++;
     } catch (err: any) {
       failCount++;
-      console.error(`[ScrapeAll] ✗ ${scraper.storeSlug} failed: ${err.message}`);
+      errorMsg = err.message || String(err);
+      const duration = Date.now() - startTime;
+      console.error(`[ScrapeAll] ✗ ${scraper.storeSlug} failed: ${errorMsg}`);
+      
+      await logScrapeRun(scraper.storeSlug, 'failed', {
+        offers_found: offersFound,
+        offers_saved: offersSaved,
+        error: errorMsg,
+        duration_ms: duration,
+      });
     }
   });
 
