@@ -2,12 +2,98 @@ import { StoreScraper, RawOffer } from './types';
 import { fetchVtexMultiCategory } from './vtexCategoryFetcher';
 import { scrapeStoreWithPlaywrightFallback } from './playwrightStoreFallback';
 
+const LIDER_PROMO_URLS = [
+  'https://super.lider.cl/content/productos-a-mil/96311243?ContentZone3&co_ty=Hubspokes&co_nm=tusfavoritos_W15&co_id=09042026_trafico_vertodo&co_or=1',
+  'https://super.lider.cl/content/mainstays/42638900?ContentZone3&co_ty=Hubspokes&co_nm=tusfavoritos_W15&co_id=09042026_camp_mainstays&co_or=4',
+  'https://super.lider.cl/browse/Activaciones/Supermecado/Supermercado-131/20126634_89720227_98986479?ContentZone3&co_ty=Hubspokes&co_nm=tusfavoritos_W15&co_id=09042026_camp_edlp&co_or=3',
+  'https://super.lider.cl/browse/Productos-a-mil/Productos-a-1000/96311243_72163828?ContentZone3&co_ty=Hubspokes&co_nm=tusfavoritos_W15&co_id=09042026_trafico_productosmil&co_or=2',
+  'https://super.lider.cl/browse/Productos-a-mil/Productos-a-2000/96311243_24584919?ContentZone3&co_ty=Hubspokes&co_nm=tusfavoritos_W15&co_id=09042026_trafico_productos2mil&co_or=3',
+  'https://super.lider.cl/browse/Productos-a-mil/Productos-a-3000/96311243_26319580?ContentZone3&co_ty=Hubspokes&co_nm=tusfavoritos_W15&co_id=09042026_trafico_productos3mil&co_or=4',
+];
+
+function parseCLP(raw: string | undefined): number {
+  if (!raw) return 0;
+  const digits = raw.replace(/[^\d]/g, '');
+  return digits ? parseInt(digits, 10) : 0;
+}
+
+async function fetchLiderHtmlOffers(cookieHeader?: string): Promise<RawOffer[]> {
+  const offers: RawOffer[] = [];
+  const seen = new Set<string>();
+
+  for (const url of LIDER_PROMO_URLS) {
+    try {
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
+            '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+          Referer: 'https://super.lider.cl/',
+          ...(cookieHeader ? { Cookie: cookieHeader } : {}),
+        },
+        signal: AbortSignal.timeout(25_000),
+      });
+
+      if (!response.ok) {
+        console.warn(`[LiderScraper] HTML fallback failed (${url}): HTTP ${response.status}`);
+        continue;
+      }
+
+      const html = await response.text();
+      if (/Robot or human\?/i.test(html)) {
+        console.warn('[LiderScraper] HTML fallback hit challenge page.');
+        continue;
+      }
+
+      const productRegex = /\{"canAddToCart":(?<obj>[\s\S]*?)"name":"(?<name>[^\"]+)"(?<tail>[\s\S]*?)"price":(?<price>\d+)(?<rest>[\s\S]*?)"brand":"(?<brand>[^\"]*)"(?<afterBrand>[\s\S]*?)"canonicalUrl":"(?<href>\/ip\/[^\"]+)"\}/g;
+      let match: RegExpExecArray | null;
+
+      while ((match = productRegex.exec(html)) !== null) {
+        const href = match.groups?.href || '';
+        const name = (match.groups?.name || '').trim();
+        const price = parseInt(match.groups?.price || '0', 10);
+        const merged = `${match.groups?.obj || ''}${match.groups?.tail || ''}${match.groups?.rest || ''}${match.groups?.afterBrand || ''}`;
+
+        if (!href || !name) continue;
+        const key = name.toLowerCase();
+        if (seen.has(key)) continue;
+
+        if (!price || Number.isNaN(price)) continue;
+
+        const wasPriceMatch = merged.match(/"wasPrice":"\$(?<was>[\d\.]+)"/);
+        const imageMatch = merged.match(/"image":"(?<img>[^\"]+)"/);
+        const categoryMatch = merged.match(/"categoryPath":"(?<cat>[^\"]+)"/);
+
+        const offerPrice = price;
+        const wasPrice = parseCLP(wasPriceMatch?.groups?.was);
+        const originalPrice = wasPrice > offerPrice ? wasPrice : offerPrice;
+
+        seen.add(key);
+        offers.push({
+          productName: name,
+          brand: (match.groups?.brand || null),
+          imageUrl: imageMatch?.groups?.img || '',
+          offerUrl: `https://super.lider.cl${href}`,
+          offerPrice,
+          originalPrice,
+          categoryHint: categoryMatch?.groups?.cat || null,
+        });
+      }
+    } catch (error: any) {
+      console.warn(`[LiderScraper] HTML fallback error (${url}): ${error.message}`);
+    }
+  }
+
+  console.log(`[LiderScraper] HTML fallback total: ${offers.length} offers.`);
+  return offers;
+}
+
 /**
  * LiderScraper — Walmart Chile
  *
- * Walmart Chile has Cloudflare Enterprise on www.lider.cl.
- * Strategy: try the VTEX CDN (lider.vteximg.com.br) like other stores.
- * If CF blocks it, returns [] gracefully — never fails the pipeline.
+ * Walmart Chile has anti-bot protections.
+ * Strategy: use curated promo landings (HTML embedded data) first,
+ * then Playwright fallback. VTEX legacy fetch is opt-in via env flag.
  *
  * Estado: Pendiente — el scraper es resiliente pero el endpoint puede no funcionar.
  */
@@ -17,25 +103,29 @@ export class LiderScraper implements StoreScraper {
   async scrape(): Promise<RawOffer[]> {
     try {
       const cookieHeader = process.env.LIDER_COOKIE?.trim();
+      const useLegacyVtex = process.env.LIDER_USE_VTEX === '1';
 
-      const offers = await fetchVtexMultiCategory({
-        cdnBase:      'https://lider.vteximg.com.br',
-        fallbackBases:[
-          'https://www.lider.cl',
-          'https://lidercl.vtexassets.com',
-        ],
-        siteBase:     'https://www.lider.cl',
-        pathPrefix:   '/supermercado',
-        referer:      'https://www.lider.cl/supermercado/ofertas',
-        logTag:       'LiderScraper',
-        minProducts:  50,
-        concurrency:  3,
-        extraHeaders: cookieHeader ? { Cookie: cookieHeader } : undefined,
-      });
+      const htmlOffers = await fetchLiderHtmlOffers(cookieHeader);
+      if (htmlOffers.length > 0) return htmlOffers;
 
-      if (offers.length > 0) return offers;
+      if (useLegacyVtex) {
+        const offers = await fetchVtexMultiCategory({
+          cdnBase:      'https://lider.vteximg.com.br',
+          fallbackBases:[
+            'https://www.lider.cl',
+            'https://lidercl.vtexassets.com',
+          ],
+          siteBase:     'https://www.lider.cl',
+          pathPrefix:   '/supermercado',
+          referer:      'https://www.lider.cl/supermercado/ofertas',
+          logTag:       'LiderScraper',
+          minProducts:  50,
+          concurrency:  3,
+          extraHeaders: cookieHeader ? { Cookie: cookieHeader } : undefined,
+        });
 
-      console.warn('[LiderScraper] VTEX CDN returned 0 offers — trying Playwright fallback...');
+        if (offers.length > 0) return offers;
+      }
 
       if (!cookieHeader) {
         console.warn('[LiderScraper] Challenge detected. Set LIDER_COOKIE in .env.local to reuse a valid browser session.');
@@ -44,14 +134,7 @@ export class LiderScraper implements StoreScraper {
       return scrapeStoreWithPlaywrightFallback({
         logTag: 'LiderScraper',
         baseUrl: 'https://www.lider.cl',
-        categoryUrls: [
-          'https://super.lider.cl/content/productos-a-mil/96311243?ContentZone3&co_ty=Hubspokes&co_nm=tusfavoritos_W15&co_id=09042026_trafico_vertodo&co_or=1',
-          'https://super.lider.cl/content/mainstays/42638900?ContentZone3&co_ty=Hubspokes&co_nm=tusfavoritos_W15&co_id=09042026_camp_mainstays&co_or=4',
-          'https://super.lider.cl/browse/Activaciones/Supermecado/Supermercado-131/20126634_89720227_98986479?ContentZone3&co_ty=Hubspokes&co_nm=tusfavoritos_W15&co_id=09042026_camp_edlp&co_or=3',
-          'https://super.lider.cl/browse/Productos-a-mil/Productos-a-1000/96311243_72163828?ContentZone3&co_ty=Hubspokes&co_nm=tusfavoritos_W15&co_id=09042026_trafico_productosmil&co_or=2',
-          'https://super.lider.cl/browse/Productos-a-mil/Productos-a-2000/96311243_24584919?ContentZone3&co_ty=Hubspokes&co_nm=tusfavoritos_W15&co_id=09042026_trafico_productos2mil&co_or=3',
-          'https://super.lider.cl/browse/Productos-a-mil/Productos-a-3000/96311243_26319580?ContentZone3&co_ty=Hubspokes&co_nm=tusfavoritos_W15&co_id=09042026_trafico_productos3mil&co_or=4',
-        ],
+        categoryUrls: LIDER_PROMO_URLS,
         maxProducts: 50,
       });
     } catch (err: any) {

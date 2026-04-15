@@ -11,11 +11,13 @@ import { fetchVtexMultiCategory } from './vtexCategoryFetcher';
 export class JumboScraper implements StoreScraper {
   storeSlug = 'jumbo';
 
+  private readonly OFFERS_URL = 'https://www.jumbo.cl/jumbo-ofertas?nombre_promo=boton-jumboofertas-13112023';
+
   async scrape(): Promise<RawOffer[]> {
     return fetchVtexMultiCategory({
       cdnBase:      'https://jumbo.vteximg.com.br',
       siteBase:     'https://www.jumbo.cl',
-      referer:      'https://www.jumbo.cl/ofertas',
+      referer:      this.OFFERS_URL,
       logTag:       'JumboScraper',
       minProducts:  50,
       concurrency:  3,

@@ -62,10 +62,13 @@ export async function scrapeStoreWithPlaywrightFallback(
 
         const items = await page.evaluate((origin) => {
           const cardSelectors = [
+            '[role="group"][aria-label="Producto"]',
+            '[aria-label="Producto"]',
             'article.vtex-product-summary-2-x-element',
             '.vtex-product-summary-2-x-container',
             '[data-testid="product-card"]',
             'article[class*="product"]',
+            'li[class*="galleryItem"]',
           ];
 
           const cards = cardSelectors
@@ -81,10 +84,15 @@ export async function scrapeStoreWithPlaywrightFallback(
               return '';
             };
 
+            const cardText = (card.textContent || '').replace(/\s+/g, ' ').trim();
+            const textPrices = cardText.match(/\$\s?[\d\.]+/g) || [];
+
             const name = getText([
               '[class*="productBrand"]',
               '[class*="productName"]',
+              '[class*="product-name"]',
               '[class*="nameContainer"]',
+              '[data-automation-id*="product-name"]',
               'h2',
               'h3',
               'span',
@@ -95,15 +103,18 @@ export async function scrapeStoreWithPlaywrightFallback(
               '[class*="spotPriceValue"]',
               '[class*="price_sellingPrice"]',
               '[data-testid="selling-price"]',
+              '[class*="price-current"]',
             ]);
 
             const listPrice = getText([
               '[class*="listPriceValue"]',
               '[class*="price_listPrice"]',
               '[data-testid="list-price"]',
+              '[class*="price-old"]',
             ]);
 
-            const anchor = card.querySelector('a[href]') as HTMLAnchorElement | null;
+            const deepLink = card.querySelector('a[href*="/ip/"], a[href*="/articulo/"]') as HTMLAnchorElement | null;
+            const anchor = deepLink || (card.querySelector('a[href]') as HTMLAnchorElement | null);
             const img = card.querySelector('img') as HTMLImageElement | null;
             const href = anchor?.getAttribute('href') || '';
             const offerUrl = href.startsWith('http') ? href : `${origin}${href}`;
@@ -111,8 +122,8 @@ export async function scrapeStoreWithPlaywrightFallback(
             return {
               productName: name,
               imageUrl: img?.src || img?.getAttribute('data-src') || '',
-              offerPriceText: sellingPrice,
-              originalPriceText: listPrice,
+              offerPriceText: sellingPrice || textPrices[0] || '',
+              originalPriceText: listPrice || textPrices[1] || '',
               offerUrl,
             };
           });

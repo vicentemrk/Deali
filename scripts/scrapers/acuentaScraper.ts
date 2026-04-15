@@ -1,35 +1,126 @@
 import { chromium } from 'playwright';
 import { StoreScraper, RawOffer } from './types';
 
-const MAX_SCROLL_CYCLES = 8;
 const TARGET_PRODUCTS   = 50;
-const SCROLL_PAUSE_MS   = 2_000;
-const LOAD_MORE_WAIT_MS = 3_000;
+
+type ExtractedCard = {
+  productName: string;
+  imageUrl: string;
+  offerUrl: string;
+  offerPrice: number;
+  originalPrice: number;
+};
 
 /**
- * AcuentaScraper — SMU Group (misma plataforma que Unimarc)
+ * AcuentaScraper — SMU Group
  *
- * aCuenta es una SPA con lazy load. Estrategia:
- *  - waitUntil: 'networkidle' para esperar hidratación completa
- *  - Iteración por múltiples categorías para alcanzar 50+ productos:
- *    /categorias/ofertas, /categorias/despensa, /categorias/bebidas,
- *    /categorias/lacteos, /categorias/carnes-y-aves
- *  - Scroll + Load More en cada URL de categoría
- *  - Deduplicación por productName para evitar repetidos entre categorías
+ * Usa campañas explícitas provistas por el usuario:
+ *  - /ca/luka-dos-y-tres-lukas/60 (páginas 1..10)
+ *  - /ca/canasta-ahorradora/400 (páginas 1..2)
  */
 export class AcuentaScraper implements StoreScraper {
   storeSlug = 'acuenta';
 
   private readonly BASE_URL = 'https://www.acuenta.cl';
 
-  // Iterate multiple categories to maximize product count
-  private readonly CATEGORY_URLS = [
-    'https://www.acuenta.cl/categorias/ofertas',
-    'https://www.acuenta.cl/categorias/despensa',
-    'https://www.acuenta.cl/categorias/bebidas',
-    'https://www.acuenta.cl/categorias/lacteos',
-    'https://www.acuenta.cl/categorias/carnes-y-aves',
+  private readonly CAMPAIGN_URLS = [
+    'https://www.acuenta.cl/ca/luka-dos-y-tres-lukas/60',
+    ...Array.from({ length: 9 }, (_, i) => `https://www.acuenta.cl/ca/luka-dos-y-tres-lukas/60?currentPage=${i + 2}`),
+    'https://www.acuenta.cl/ca/canasta-ahorradora/400',
+    'https://www.acuenta.cl/ca/canasta-ahorradora/400?currentPage=2',
   ];
+
+  private parseCategoryHintFromUrl(url: string): string | null {
+    const match = url.match(/\/ca\/([^/?#]+)/i);
+    return match?.[1] ?? null;
+  }
+
+  private parseMoney(raw: string | null | undefined): number {
+    const digits = (raw || '').replace(/[^\d]/g, '');
+    return digits ? parseInt(digits, 10) : 0;
+  }
+
+  private async extractCards(page: any): Promise<ExtractedCard[]> {
+    const out: ExtractedCard[] = [];
+    const cards = await page.locator('[class*="StyledCard"]').all();
+
+    for (const card of cards) {
+      const href = await card.locator('a[href*="/p/"]').first().getAttribute('href').catch(() => null);
+      if (!href) continue;
+
+      const rawName = (await card.locator('[data-testid="card-name"]').first().textContent().catch(() => null)) || '';
+      const fallbackName = (await card.locator('a[href*="/p/"]').first().textContent().catch(() => null)) || '';
+      const productName = (rawName || fallbackName).replace(/\s+/g, ' ').trim().slice(0, 180);
+      if (!productName) continue;
+
+      const srcset = await card.locator('img').first().getAttribute('srcset').catch(() => null);
+      const dataSrc = await card.locator('img').first().getAttribute('data-src').catch(() => null);
+      const src = await card.locator('img').first().getAttribute('src').catch(() => null);
+      const imageUrl = srcset
+        ? (srcset.split(',').map((v: string) => v.trim()).pop()?.split(/\s+/)[0] || '')
+        : (dataSrc || src || '');
+
+      const basePriceText = await card.locator('[data-testid="card-base-price"]').first().textContent().catch(() => null);
+      const crossedText = await card.locator('[data-testid^="crossed-out-price"], s, del').first().textContent().catch(() => null);
+      const text = ((await card.innerText().catch(() => '')) || '').replace(/\s+/g, ' ').trim();
+
+      let offerPrice = this.parseMoney(basePriceText);
+      let originalPrice = this.parseMoney(crossedText);
+
+      const candidates: Array<{ value: number; isPerUnit: boolean; isEach: boolean }> = [];
+      const re = /\$\s*([\d\.]+)([^$]{0,26})/g;
+      let match = re.exec(text);
+      while (match) {
+        const value = this.parseMoney(match[1]);
+        if (value > 0) {
+          const tail = (match[2] || '').toLowerCase();
+          const isPerUnit = /por\s|x\s*(kg|g|l|lt|ml|un|u\b|mts?|m\b|100|100un)/i.test(tail);
+          const isEach = /c\/?u/.test(tail);
+          candidates.push({ value, isPerUnit, isEach });
+        }
+        match = re.exec(text);
+      }
+
+      const eachPrice = candidates.find((c) => c.isEach)?.value || 0;
+      const numericCandidates = candidates.filter((c) => !c.isPerUnit || c.isEach).map((c) => c.value);
+
+      if (!offerPrice) {
+        offerPrice = eachPrice || numericCandidates[0] || 0;
+      }
+
+      if (!originalPrice && numericCandidates.length >= 2) {
+        const greater = numericCandidates.filter((value) => value > offerPrice);
+        if (greater.length > 0) originalPrice = greater[greater.length - 1];
+      }
+
+      const multiBuyMatch = text.match(/(\d+)\s*X\s*\$\s*([\d\.]+)/i);
+      if (multiBuyMatch) {
+        const qty = parseInt(multiBuyMatch[1], 10);
+        const total = this.parseMoney(multiBuyMatch[2]);
+        if (qty > 0 && total > 0) {
+          const bundleUnitPrice = Math.round(total / qty);
+          if (!offerPrice) {
+            offerPrice = bundleUnitPrice;
+          } else if (bundleUnitPrice !== offerPrice) {
+            const low = Math.min(bundleUnitPrice, offerPrice);
+            const high = Math.max(bundleUnitPrice, offerPrice);
+            offerPrice = low;
+            if (!originalPrice) originalPrice = high;
+          }
+        }
+      }
+
+      out.push({
+        productName,
+        imageUrl,
+        offerUrl: href,
+        offerPrice,
+        originalPrice,
+      });
+    }
+
+    return out.filter((item) => item.productName && item.offerUrl && item.offerPrice > 0);
+  }
 
   async scrape(): Promise<RawOffer[]> {
     const browser = await chromium.launch({ headless: true });
@@ -41,151 +132,57 @@ export class AcuentaScraper implements StoreScraper {
       extraHTTPHeaders: { 'Accept-Language': 'es-CL,es;q=0.9' },
     });
 
-    // Block heavy assets to speed up load
-    await context.route('**/*.{png,jpg,jpeg,gif,webp,svg,woff,woff2,ttf,eot}', (route) =>
-      route.abort()
-    );
-
     const offers: RawOffer[] = [];
-    const seenNames = new Set<string>(); // dedup across categories
+    const seenNames = new Set<string>();
 
     try {
-      for (const categoryUrl of this.CATEGORY_URLS) {
-        // Stop iterating categories once we have enough
+      for (const campaignUrl of this.CAMPAIGN_URLS) {
         if (offers.length >= TARGET_PRODUCTS) break;
 
-        console.log(`[AcuentaScraper] → ${categoryUrl}`);
+        console.log(`[AcuentaScraper] → ${campaignUrl}`);
         const page = await context.newPage();
 
         try {
-          await page.goto(categoryUrl, { waitUntil: 'domcontentloaded', timeout: 35_000 });
-          await page.waitForTimeout(1_500); // SPA hydration
+          await page.goto(campaignUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+          await page.waitForTimeout(4_000);
 
           const hasProducts = await page.waitForSelector(
-            '.product-card, .ProductCard, [data-testid="product-card"], .catalog-item, article[class*="product"]',
+            '[class*="StyledCard"], a.containerCard, [data-testid="card-name"], a[href*="/p/"]',
             { timeout: 15_000 }
           ).then(() => true).catch(() => false);
 
           if (!hasProducts) {
-            console.warn(`[AcuentaScraper] Selector timeout on ${categoryUrl}`);
+            console.warn(`[AcuentaScraper] Selector timeout on ${campaignUrl}`);
             await page.close();
             continue;
           }
 
-          // ── Scroll + Load More ─────────────────────────────────────────
-          for (let cycle = 0; cycle < MAX_SCROLL_CYCLES; cycle++) {
-            await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-            await page.waitForTimeout(SCROLL_PAUSE_MS);
+          const extracted = await this.extractCards(page);
+          console.log(`[AcuentaScraper] ${campaignUrl}: ${extracted.length} cards`);
 
-            const currentCount = await page.$$eval(
-              '.product-card, .ProductCard, [data-testid="product-card"], .catalog-item, article[class*="product"]',
-              (els) => els.length
-            ).catch(() => 0);
+          const categoryHint = this.parseCategoryHintFromUrl(campaignUrl);
 
-            const loadMoreClicked = await page.evaluate(() => {
-              const selectors = [
-                '[data-testid="load-more-btn"]',
-                '.btn--load-more',
-                'button[class*="load-more"]',
-                'button[class*="LoadMore"]',
-                '[class*="see-more"]',
-                '[class*="ver-mas"]',
-                '.show-more',
-                'button[class*="show-more"]',
-              ];
-              for (const sel of selectors) {
-                const btn = document.querySelector(sel) as HTMLElement | null;
-                if (btn && btn.offsetParent !== null) {
-                  btn.click();
-                  return true;
-                }
-              }
-              return false;
+          for (const item of extracted) {
+            const key = item.productName.trim().toLowerCase();
+            if (seenNames.has(key)) continue;
+            seenNames.add(key);
+
+            if (!item.originalPrice || item.offerPrice >= item.originalPrice) continue;
+
+            offers.push({
+              productName: item.productName,
+              brand: null,
+              imageUrl: item.imageUrl,
+              offerUrl: item.offerUrl.startsWith('http') ? item.offerUrl : `${this.BASE_URL}${item.offerUrl}`,
+              offerPrice: item.offerPrice,
+              originalPrice: item.originalPrice,
+              categoryHint,
             });
 
-            if (loadMoreClicked) await page.waitForTimeout(LOAD_MORE_WAIT_MS);
-            if (currentCount >= TARGET_PRODUCTS && !loadMoreClicked) break;
-          }
-          // ──────────────────────────────────────────────────────────────
-
-          const productNodes = await page.$$(
-            '.product-card, .ProductCard, [data-testid="product-card"], .catalog-item, article[class*="product"]'
-          );
-
-          console.log(`[AcuentaScraper] ${categoryUrl}: ${productNodes.length} nodes`);
-
-          for (const node of productNodes) {
-            try {
-              const productName = await node.$eval(
-                '.product-title, .ProductTitle, [data-testid="product-name"], h2, h3, [class*="title"]',
-                (el) => el.textContent?.trim() || ''
-              ).catch(() => '');
-
-              if (!productName) continue;
-
-              // Dedup across categories
-              const key = productName.trim().toLowerCase();
-              if (seenNames.has(key)) continue;
-              seenNames.add(key);
-
-              const brand = await node.$eval(
-                '.product-brand, .ProductBrand, [data-testid="product-brand"], [class*="brand"]',
-                (el) => el.textContent?.trim() || null
-              ).catch(() => null);
-
-              const imageUrl = await node.$eval(
-                'img',
-                (el) => {
-                  // Prefer srcset highest-res > data-src (lazy) > src
-                  const srcset = el.getAttribute('srcset');
-                  if (srcset) {
-                    const parts = srcset.split(',').map(s => s.trim());
-                    const last = parts[parts.length - 1]?.split(/\s+/)[0];
-                    if (last) return last;
-                  }
-                  return el.getAttribute('data-src') || el.getAttribute('src') || '';
-                }
-              ).catch(() => '');
-
-              const offerUrl = await node.$eval(
-                'a',
-                (el) => el.getAttribute('href') || ''
-              ).catch(() => '');
-
-              const offerPriceText = await node.$eval(
-                '.price-current, .price-offer, [data-testid="price-offer"], [class*="offer"], [class*="current"], [class*="OfferPrice"]',
-                (el) => el.textContent?.replace(/[^\d]/g, '') || '0'
-              ).catch(() => '0');
-
-              const originalPriceText = await node.$eval(
-                '.price-old, .price-normal, [data-testid="price-normal"], [class*="old"], [class*="normal"], [class*="NormalPrice"], s',
-                (el) => el.textContent?.replace(/[^\d]/g, '') || '0'
-              ).catch(() => offerPriceText);
-
-              const offerPrice    = parseInt(offerPriceText, 10);
-              const originalPrice = parseInt(originalPriceText, 10);
-
-              if (!offerPrice || offerPrice === 0 || offerPrice >= originalPrice) continue;
-
-              // Use category URL slug as category hint when site doesn't expose it
-              const categorySlug = categoryUrl.split('/').pop() ?? null;
-
-              offers.push({
-                productName,
-                brand,
-                imageUrl,
-                offerUrl: offerUrl.startsWith('http') ? offerUrl : `${this.BASE_URL}${offerUrl}`,
-                offerPrice,
-                originalPrice,
-                categoryHint: categorySlug !== 'ofertas' ? categorySlug : null,
-              });
-            } catch (error: any) {
-              console.warn(`[AcuentaScraper] Error parsing node: ${error.message}`);
-            }
+            if (offers.length >= TARGET_PRODUCTS) break;
           }
         } catch (navError: any) {
-          console.warn(`[AcuentaScraper] Failed to scrape ${categoryUrl}: ${navError.message}`);
-          // Continue to next category instead of aborting
+          console.warn(`[AcuentaScraper] Failed to scrape ${campaignUrl}: ${navError.message}`);
         } finally {
           await page.close();
         }
