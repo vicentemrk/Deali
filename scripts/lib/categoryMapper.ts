@@ -13,8 +13,11 @@
 // Each entry: [regex, canonical slug]
 // Order matters — more specific patterns must come before broad ones.
 const RULES: Array<[RegExp, string]> = [
+  // ── Bebidas No Alcohólicas (must come before alcohol patterns) ────────
+  [/no\s+alcoh|sin\s+alcoh|no\s+alcohol/i, 'bebidas'],
+
   // ── Bebidas Alcohólicas ────────────────────────────────────────────────
-  [/alcohol|licor|vinos?|cerveza|pisco|ron\b|vodka|whisky|champagne|espumante|cider|sidra/i, 'bebidas-alcoholicas'],
+  [/alcoh|licor|vinos?|cerveza|pisco|ron\b|vodka|whisky|champagne|espumante|cider|sidra/i, 'bebidas-alcoholicas'],
 
   // ── Lácteos ───────────────────────────────────────────────────────────
   [/l[aá]cteo|yogur|queso|mantequilla|crema\s+de\s+leche|leche|huevo|margarina/i, 'lacteos'],
@@ -35,7 +38,7 @@ const RULES: Array<[RegExp, string]> = [
   [/snack|galleta|confite|chocolate|caramelo|choclo\s+palomita|papas?\s+fritas?|frutos?\s+secos?|maní/i, 'snacks-galletas'],
 
   // ── Higiene Personal ──────────────────────────────────────────────────
-  [/higiene\s+personal|cuidado\s+personal|shamp[o]?o|acondicionador|jabón\s+(de\s+)?mano|desodorante|dental|pasta\s+de\s+diente|afeitado|toalla\s+higi[eé]|maquillaje|cosmético/i, 'cuidado-personal-bebe'],
+  [/higiene(\s+personal)?|cuidado\s+personal|shamp[o]?o|acondicionador|jabón\s+(de\s+)?mano|desodorante|dental|pasta\s+de\s+diente|afeitado|toalla\s+higi[eé]|maquillaje|cosmético/i, 'cuidado-personal-bebe'],
 
   // ── Limpieza del Hogar ────────────────────────────────────────────────
   [/limpieza|aseo\s+del?\s+hogar|detergente|suavizante|lava\s+loza|desengrasante|cloro|esponja|escoba|papel\s+de\s+cocina|servilleta|papel\s+higi[eé]/i, 'limpieza-hogar'],
