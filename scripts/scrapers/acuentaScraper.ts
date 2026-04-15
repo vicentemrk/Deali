@@ -11,6 +11,8 @@ type ExtractedCard = {
   originalPrice: number;
 };
 
+const CARD_FIELD_TIMEOUT_MS = 1_200;
+
 /**
  * AcuentaScraper — SMU Group
  *
@@ -40,29 +42,52 @@ export class AcuentaScraper implements StoreScraper {
     return digits ? parseInt(digits, 10) : 0;
   }
 
+  private async safeText(locator: any): Promise<string | null> {
+    return locator
+      .textContent({ timeout: CARD_FIELD_TIMEOUT_MS })
+      .then((value: string | null) => value)
+      .catch(() => null);
+  }
+
+  private async safeAttr(locator: any, attr: string): Promise<string | null> {
+    return locator
+      .getAttribute(attr, { timeout: CARD_FIELD_TIMEOUT_MS })
+      .then((value: string | null) => value)
+      .catch(() => null);
+  }
+
+  private async safeInnerText(locator: any): Promise<string> {
+    return locator
+      .innerText({ timeout: CARD_FIELD_TIMEOUT_MS })
+      .then((value: string) => value)
+      .catch(() => '');
+  }
+
   private async extractCards(page: any): Promise<ExtractedCard[]> {
     const out: ExtractedCard[] = [];
     const cards = await page.locator('[class*="StyledCard"]').all();
 
     for (const card of cards) {
-      const href = await card.locator('a[href*="/p/"]').first().getAttribute('href').catch(() => null);
+      const productAnchor = card.locator('a[href*="/p/"]').first();
+      const href = await this.safeAttr(productAnchor, 'href');
       if (!href) continue;
 
-      const rawName = (await card.locator('[data-testid="card-name"]').first().textContent().catch(() => null)) || '';
-      const fallbackName = (await card.locator('a[href*="/p/"]').first().textContent().catch(() => null)) || '';
+      const rawName = (await this.safeText(card.locator('[data-testid="card-name"]').first())) || '';
+      const fallbackName = (await this.safeText(productAnchor)) || '';
       const productName = (rawName || fallbackName).replace(/\s+/g, ' ').trim().slice(0, 180);
       if (!productName) continue;
 
-      const srcset = await card.locator('img').first().getAttribute('srcset').catch(() => null);
-      const dataSrc = await card.locator('img').first().getAttribute('data-src').catch(() => null);
-      const src = await card.locator('img').first().getAttribute('src').catch(() => null);
+      const imageNode = card.locator('img').first();
+      const srcset = await this.safeAttr(imageNode, 'srcset');
+      const dataSrc = await this.safeAttr(imageNode, 'data-src');
+      const src = await this.safeAttr(imageNode, 'src');
       const imageUrl = srcset
         ? (srcset.split(',').map((v: string) => v.trim()).pop()?.split(/\s+/)[0] || '')
         : (dataSrc || src || '');
 
-      const basePriceText = await card.locator('[data-testid="card-base-price"]').first().textContent().catch(() => null);
-      const crossedText = await card.locator('[data-testid^="crossed-out-price"], s, del').first().textContent().catch(() => null);
-      const text = ((await card.innerText().catch(() => '')) || '').replace(/\s+/g, ' ').trim();
+      const basePriceText = await this.safeText(card.locator('[data-testid="card-base-price"]').first());
+      const crossedText = await this.safeText(card.locator('[data-testid^="crossed-out-price"], s, del').first());
+      const text = (await this.safeInnerText(card)).replace(/\s+/g, ' ').trim();
 
       let offerPrice = this.parseMoney(basePriceText);
       let originalPrice = this.parseMoney(crossedText);
@@ -123,76 +148,75 @@ export class AcuentaScraper implements StoreScraper {
   }
 
   async scrape(): Promise<RawOffer[]> {
-    const browser = await chromium.launch({ headless: true });
-    const context = await browser.newContext({
-      userAgent:
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
-        '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-      viewport: { width: 1440, height: 900 },
-      extraHTTPHeaders: { 'Accept-Language': 'es-CL,es;q=0.9' },
-    });
-
     const offers: RawOffer[] = [];
     const seenNames = new Set<string>();
 
-    try {
-      for (const campaignUrl of this.CAMPAIGN_URLS) {
-        if (offers.length >= TARGET_PRODUCTS) break;
+    for (const campaignUrl of this.CAMPAIGN_URLS) {
+      if (offers.length >= TARGET_PRODUCTS) break;
 
-        console.log(`[AcuentaScraper] → ${campaignUrl}`);
-        const page = await context.newPage();
+      console.log(`[AcuentaScraper] → ${campaignUrl}`);
 
-        try {
-          await page.goto(campaignUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
-          await page.waitForTimeout(4_000);
+      let browser: any;
+      let context: any;
+      let page: any;
 
-          const hasProducts = await page.waitForSelector(
-            '[class*="StyledCard"], a.containerCard, [data-testid="card-name"], a[href*="/p/"]',
-            { timeout: 15_000 }
-          ).then(() => true).catch(() => false);
+      try {
+        browser = await chromium.launch({ headless: true });
+        context = await browser.newContext({
+          userAgent:
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
+            '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+          viewport: { width: 1440, height: 900 },
+          extraHTTPHeaders: { 'Accept-Language': 'es-CL,es;q=0.9' },
+        });
+        page = await context.newPage();
 
-          if (!hasProducts) {
-            console.warn(`[AcuentaScraper] Selector timeout on ${campaignUrl}`);
-            await page.close();
-            continue;
-          }
+        await page.goto(campaignUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+        await page.waitForTimeout(4_000);
 
-          const extracted = await this.extractCards(page);
-          console.log(`[AcuentaScraper] ${campaignUrl}: ${extracted.length} cards`);
+        const hasProducts = await page.waitForSelector(
+          '[class*="StyledCard"], a.containerCard, [data-testid="card-name"], a[href*="/p/"]',
+          { timeout: 15_000 }
+        ).then(() => true).catch(() => false);
 
-          const categoryHint = this.parseCategoryHintFromUrl(campaignUrl);
-
-          for (const item of extracted) {
-            const key = item.productName.trim().toLowerCase();
-            if (seenNames.has(key)) continue;
-            seenNames.add(key);
-
-            if (!item.originalPrice || item.offerPrice >= item.originalPrice) continue;
-
-            offers.push({
-              productName: item.productName,
-              brand: null,
-              imageUrl: item.imageUrl,
-              offerUrl: item.offerUrl.startsWith('http') ? item.offerUrl : `${this.BASE_URL}${item.offerUrl}`,
-              offerPrice: item.offerPrice,
-              originalPrice: item.originalPrice,
-              categoryHint,
-            });
-
-            if (offers.length >= TARGET_PRODUCTS) break;
-          }
-        } catch (navError: any) {
-          console.warn(`[AcuentaScraper] Failed to scrape ${campaignUrl}: ${navError.message}`);
-        } finally {
-          await page.close();
+        if (!hasProducts) {
+          console.warn(`[AcuentaScraper] Selector timeout on ${campaignUrl}`);
+          continue;
         }
+
+        const extracted = await this.extractCards(page);
+        console.log(`[AcuentaScraper] ${campaignUrl}: ${extracted.length} cards`);
+
+        const categoryHint = this.parseCategoryHintFromUrl(campaignUrl);
+
+        for (const item of extracted) {
+          const key = item.productName.trim().toLowerCase();
+          if (seenNames.has(key)) continue;
+          seenNames.add(key);
+
+          if (!item.originalPrice || item.offerPrice >= item.originalPrice) continue;
+
+          offers.push({
+            productName: item.productName,
+            brand: null,
+            imageUrl: item.imageUrl,
+            offerUrl: item.offerUrl.startsWith('http') ? item.offerUrl : `${this.BASE_URL}${item.offerUrl}`,
+            offerPrice: item.offerPrice,
+            originalPrice: item.originalPrice,
+            categoryHint,
+          });
+
+          if (offers.length >= TARGET_PRODUCTS) break;
+        }
+      } catch (navError: any) {
+        console.warn(`[AcuentaScraper] Failed to scrape ${campaignUrl}: ${navError.message}`);
+      } finally {
+        await page?.close().catch(() => undefined);
+        await context?.close().catch(() => undefined);
+        await browser?.close().catch(() => undefined);
       }
-    } catch (error: any) {
-      await browser.close();
-      throw new Error(`[AcuentaScraper Playwright Error] ${error.message}`);
     }
 
-    await browser.close();
     console.log(`[AcuentaScraper] ✅ Total: ${offers.length} offers.`);
     return offers;
   }
