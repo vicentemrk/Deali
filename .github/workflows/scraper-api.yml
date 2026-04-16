@@ -7,7 +7,7 @@ name: Scraper — API (Jumbo, Tottus, Líder, Santa Isabel)
 
 on:
   schedule:
-    - cron: "*/30 * * * *"  # Cada 30 minutos
+    - cron: "0 */3 * * *"  # Cada 30 minutos cron: '0 */3 * * *'
   workflow_dispatch:
 
 # Secrets requeridos en Settings → Secrets → Actions:
