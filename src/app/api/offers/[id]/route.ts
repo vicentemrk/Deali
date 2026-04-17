@@ -16,14 +16,14 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   const cacheKey = `offers:detail:${offerId}`;
 
   try {
+    const supabase = createServerSupabaseClient();
+    if (!supabase) {
+      return apiError('SUPABASE_INIT_FAILED', 'Supabase client initialization failed', 500);
+    }
+
     const result = await cached(
       cacheKey,
       async () => {
-        const supabase = createServerSupabaseClient();
-        if (!supabase) {
-          throw new Error('Supabase client initialization failed');
-        }
-        
         const { data: offer, error: offerError } = await supabase
           .from('activa_offers_view')
           .select('*')

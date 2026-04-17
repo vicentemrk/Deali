@@ -65,10 +65,12 @@ export class AcuentaScraper implements StoreScraper {
 
   private async extractCards(page: any): Promise<ExtractedCard[]> {
     const out: ExtractedCard[] = [];
-    const cards = await page.locator('[class*="StyledCard"]').all();
+    const cards = await page
+      .locator('[class*="StyledCard"], [data-testid="product-card"], article[class*="product"], li[class*="product"], a.containerCard')
+      .all();
 
     for (const card of cards) {
-      const productAnchor = card.locator('a[href*="/p/"]').first();
+      const productAnchor = card.locator('a[href*="/p/"], a[href*="/producto/"], a[href*="/articulo/"]').first();
       const href = await this.safeAttr(productAnchor, 'href');
       if (!href) continue;
 

@@ -7,6 +7,7 @@ import { TottusScraper } from './scrapers/tottusScraper';
 import { SantaIsabelScraper } from './scrapers/santaIsabelScraper';
 import { StoreScraper, RawOffer } from './scrapers/types';
 import { mapCategory } from './lib/categoryMapper';
+import { logEvent } from './lib/logger';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 
@@ -73,11 +74,15 @@ async function processOffers(
   const targetOffers = selectOffersForScrape(offers);
 
   if (targetOffers.length === 0) {
-    console.log(`[${storeSlug}] No offers to process.`);
+    logEvent('info', 'scrape.process.empty', { storeSlug });
     return 0;
   }
 
-  console.log(`[${storeSlug}] Processing ${targetOffers.length}/${offers.length} offers...`);
+  logEvent('info', 'scrape.process.start', {
+    storeSlug,
+    selectedOffers: targetOffers.length,
+    scrapedOffers: offers.length,
+  });
 
   // ── Step 1: Fetch all existing products for this store in 1 query ──────
   const { data: existingProducts, error: fetchErr } = await supabase
@@ -125,7 +130,7 @@ async function processOffers(
         supabase.from('products').update({ image_url }).eq('id', id)
       )
     );
-    console.log(`[${storeSlug}] 🖼 Backfilled images on ${imageUpdates.length} products`);
+    logEvent('info', 'scrape.products.backfill_images', { storeSlug, count: imageUpdates.length });
   }
 
   // Backfill category_id on existing products when normalization changed
@@ -146,7 +151,7 @@ async function processOffers(
         supabase.from('products').update({ category_id }).eq('id', id)
       )
     );
-    console.log(`[${storeSlug}] 🧭 Normalized categories on ${categoryUpdates.length} products`);
+    logEvent('info', 'scrape.products.normalize_categories', { storeSlug, count: categoryUpdates.length });
   }
 
   // ── Step 3: Batch insert new products con categoría resuelta ──────────
@@ -217,7 +222,7 @@ async function processOffers(
     .upsert(offersPayload, { onConflict: 'product_id' });
 
   if (upsertErr) {
-    console.error(`[${storeSlug}] Batch offer upsert failed: ${upsertErr.message}`);
+    logEvent('error', 'scrape.offers.upsert_failed', { storeSlug, error: upsertErr.message });
   }
 
   // ── Step 5: Price history deduplicada vía RPC ─────────────────────────
@@ -230,9 +235,11 @@ async function processOffers(
     )
   );
 
-  console.log(
-    `[${storeSlug}] ✅ Done — ${existing.length} updated, ${newProductIds.length} new products`
-  );
+  logEvent('info', 'scrape.process.completed', {
+    storeSlug,
+    updatedProducts: existing.length,
+    newProducts: newProductIds.length,
+  });
   
   return allProductIds.length;
 }
@@ -275,7 +282,7 @@ async function logScrapeRun(
       if (error) console.warn(`[LoggingError] Failed to log completion: ${error.message}`);
     }
   } catch (err) {
-    console.warn(`[LoggingError] Logging failed: ${err}`);
+    logEvent('warn', 'scrape.log.failed', { storeSlug, status, error: String(err) });
   }
 }
 
@@ -299,7 +306,7 @@ async function runInBatches<T>(
 // ---------------------------------------------------------------------------
 
 async function main() {
-  console.log('[ScrapeAll] Iniciando...');
+  logEvent('info', 'scrape.run.start');
 
   // Garantiza categorías canónicas para que la normalización no caiga en "General"
   const { error: categorySeedError } = await supabase
@@ -328,7 +335,10 @@ async function main() {
     (categoriesResult.data ?? []).map((c) => [c.slug, c.id])
   );
 
-  console.log(`[ScrapeAll] ${storeIdMap.size} stores, ${categorySlugMap.size} categories loaded.`);
+  logEvent('info', 'scrape.prefetch.loaded', {
+    stores: storeIdMap.size,
+    categories: categorySlugMap.size,
+  });
 
   const scrapers: StoreScraper[] = [
     new JumboScraper(),        // API — VTEX Cencosud
@@ -356,7 +366,7 @@ async function main() {
   await runInBatches(targetScrapers, 2, async (scraper) => {
     const storeId = storeIdMap.get(scraper.storeSlug);
     if (!storeId) {
-      console.error(`[ScrapeAll] Store not found in DB: ${scraper.storeSlug}`);
+      logEvent('error', 'scrape.store.missing', { storeSlug: scraper.storeSlug });
       failCount++;
       return;
     }
@@ -367,7 +377,7 @@ async function main() {
     let errorMsg: string | undefined;
 
     try {
-      console.log(`\n[ScrapeAll] → Scraping ${scraper.storeSlug}...`);
+      logEvent('info', 'scrape.store.start', { storeSlug: scraper.storeSlug });
       await logScrapeRun(scraper.storeSlug, 'started', {});
       
       const offers = await scraper.scrape();
@@ -386,7 +396,11 @@ async function main() {
       failCount++;
       errorMsg = err.message || String(err);
       const duration = Date.now() - startTime;
-      console.error(`[ScrapeAll] ✗ ${scraper.storeSlug} failed: ${errorMsg}`);
+      logEvent('error', 'scrape.store.failed', {
+        storeSlug: scraper.storeSlug,
+        error: errorMsg,
+        durationMs: duration,
+      });
       
       await logScrapeRun(scraper.storeSlug, 'failed', {
         offers_found: offersFound,
@@ -397,9 +411,10 @@ async function main() {
     }
   });
 
-  console.log(
-    `\n[ScrapeAll] Completo: ${successCount} exitosos, ${failCount} fallidos.`
-  );
+  logEvent('info', 'scrape.run.completed', {
+    successCount,
+    failCount,
+  });
 
   const strictMode = process.argv.includes('--strict') || process.env.SCRAPE_STRICT === '1';
   if (strictMode && failCount > 0) {
@@ -412,6 +427,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error(`[ScrapeAll Global Error] ${error}`);
+  logEvent('error', 'scrape.run.crashed', { error: String(error) });
   process.exit(1);
 });

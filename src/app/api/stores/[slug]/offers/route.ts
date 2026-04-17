@@ -18,14 +18,14 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
   const cacheKey = `offers:store:${params.slug}:${JSON.stringify({ page, safeLimit, category, sort })}`;
 
   try {
+    const supabase = createServerSupabaseClient();
+    if (!supabase) {
+      return apiError('SUPABASE_INIT_FAILED', 'Supabase client initialization failed', 500);
+    }
+
     const result = await cached(
       cacheKey,
       async () => {
-        const supabase = createServerSupabaseClient();
-        if (!supabase) {
-          throw new Error('Supabase client initialization failed');
-        }
-
         let query = supabase
           .from('activa_offers_view')
           .select('*', { count: 'exact' })

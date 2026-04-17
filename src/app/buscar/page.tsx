@@ -18,16 +18,24 @@ export async function generateMetadata({ searchParams }: PageProps) {
 export default async function BuscarPage({ searchParams }: PageProps) {
   const query = searchParams.q || '';
   const page = searchParams.page || '1';
+  const pageNumber = Math.max(1, Number.parseInt(page, 10) || 1);
+  const pageSize = 20;
   
   // Note: For a real production app, we would ideally have a /api/search endpoint.
   // We'll reuse the offers endpoint but pass 'q' as an argument.
   const res = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/offers?q=${encodeURIComponent(query)}&page=${page}`, { next: { revalidate: 300 } });
   
-  let offers = [];
+    let offers = [];
+    let total = 0;
   if (res.ok) {
      const data = await res.json();
      offers = data.data;
+      total = data.total || 0;
   }
+
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    const hasPrev = pageNumber > 1;
+    const hasNext = pageNumber < totalPages;
 
 
 
@@ -50,11 +58,39 @@ export default async function BuscarPage({ searchParams }: PageProps) {
             <p className="text-gray-500">Intenta buscar con otras palabras clave o navega por las categorías.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {offers.map((offer: any) => (
-              <OfferCard key={offer.offer_id} offer={offer} />
-            ))}
-          </div>
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {offers.map((offer: any) => (
+                <OfferCard key={offer.offer_id} offer={offer} />
+              ))}
+            </div>
+
+            <div className="mt-8 flex items-center justify-center gap-4">
+              {hasPrev ? (
+                <Link
+                  href={`/buscar?q=${encodeURIComponent(query)}&page=${pageNumber - 1}`}
+                  className="bg-white px-4 py-2 rounded-full border border-border shadow-sm hover:shadow text-gray-700"
+                >
+                  Anterior
+                </Link>
+              ) : (
+                <span className="px-4 py-2 rounded-full border border-border text-gray-400">Anterior</span>
+              )}
+
+              <span className="text-sm text-gray-600">Pagina {pageNumber} de {totalPages}</span>
+
+              {hasNext ? (
+                <Link
+                  href={`/buscar?q=${encodeURIComponent(query)}&page=${pageNumber + 1}`}
+                  className="bg-white px-4 py-2 rounded-full border border-border shadow-sm hover:shadow text-gray-700"
+                >
+                  Siguiente
+                </Link>
+              ) : (
+                <span className="px-4 py-2 rounded-full border border-border text-gray-400">Siguiente</span>
+              )}
+            </div>
+          </>
         )}
 
       </main>

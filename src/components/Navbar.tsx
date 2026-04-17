@@ -2,6 +2,42 @@ import React from 'react';
 import Link from 'next/link';
 import { DynamicMenu } from './DynamicMenu';
 import { CATEGORY_OPTIONS } from '@/lib/catalog';
+import { createServerSupabaseClient } from '@/lib/supabase/server';
+
+type DbCategory = {
+  id: string;
+  name: string;
+  slug: string;
+  parent_id: string | null;
+};
+
+function buildHeaderCategories(categories: DbCategory[]) {
+  const byParent = new Map<string | null, DbCategory[]>();
+
+  for (const category of categories) {
+    const key = category.parent_id ?? null;
+    const list = byParent.get(key) || [];
+    list.push(category);
+    byParent.set(key, list);
+  }
+
+  const topLevel = byParent.get(null) || [];
+
+  return topLevel.map((parent) => {
+    const children = (byParent.get(parent.id) || []).map((child) => ({
+      id: child.id,
+      name: child.name,
+      slug: child.slug,
+    }));
+
+    return {
+      id: parent.id,
+      name: parent.name,
+      slug: parent.slug,
+      children,
+    };
+  });
+}
 
 const HEADER_CATEGORIES = [
   {
@@ -25,7 +61,36 @@ const HEADER_CATEGORIES = [
   }
 ];
 
-export function Navbar() {
+export async function Navbar() {
+  const supabase = createServerSupabaseClient();
+
+  let dynamicCategories = CATEGORY_OPTIONS.map((cat) => ({
+    id: cat.slug,
+    name: cat.name,
+    slug: cat.slug,
+  }));
+
+  if (supabase) {
+    const { data } = await supabase
+      .from('categories')
+      .select('id, name, slug, parent_id')
+      .order('name');
+
+    const parsed = (data || []) as DbCategory[];
+    if (parsed.length > 0) {
+      const built = buildHeaderCategories(parsed);
+      dynamicCategories = built.length > 0
+        ? built
+        : parsed.map((cat) => ({ id: cat.id, name: cat.name, slug: cat.slug }));
+    }
+  }
+
+  const menuCategories = HEADER_CATEGORIES.map((section) =>
+    section.id === 'categorias'
+      ? { ...section, children: dynamicCategories }
+      : section
+  );
+
   return (
     <header className="bg-white border-b border-border sticky top-0 z-40 shadow-sm">
       <div className="container mx-auto px-6 py-4 flex flex-wrap items-center justify-between gap-4">
@@ -37,7 +102,7 @@ export function Navbar() {
         
         {/* Navigation Dropdown */}
         <div className="hidden md:block flex-shrink-0 z-50">
-           <DynamicMenu categories={HEADER_CATEGORIES} />
+            <DynamicMenu categories={menuCategories} />
         </div>
 
         {/* Search Bar */}

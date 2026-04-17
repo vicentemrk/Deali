@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "npm run test:src ; npm run test:scripts",
+    "test:src": "tsx --test src/**/*.test.ts",
+    "test:scripts": "tsx --test scripts/**/__tests__/*.test.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

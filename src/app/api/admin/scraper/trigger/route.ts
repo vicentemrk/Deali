@@ -9,8 +9,7 @@ const execPromise = util.promisify(exec);
 /**
  * POST request to trigger the scraper for a specific store.
  */
-// Valid store slugs — whitelist to prevent command injection
-const VALID_STORE_SLUGS = new Set(['jumbo', 'lider', 'santa-isabel', 'tottus', 'unimarc', 'acuenta']);
+const VALID_STORES = ['jumbo', 'lider', 'unimarc', 'acuenta', 'tottus', 'santa-isabel'];
 
 export async function POST(req: NextRequest) {
   try {
@@ -20,9 +19,8 @@ export async function POST(req: NextRequest) {
       return apiError('MISSING_STORE_SLUG', 'storeSlug is required', 400);
     }
     
-    // Sanitize storeSlug — only allow whitelisted values (prevent command injection)
-    if (!VALID_STORE_SLUGS.has(storeSlug)) {
-      return apiError('INVALID_STORE_SLUG', `Invalid store slug: ${storeSlug}`, 400);
+    if (!VALID_STORES.includes(storeSlug)) {
+      return apiError('INVALID_STORE', 'Invalid', 400);
     }
     
     const supabase = createServerSupabaseClient();

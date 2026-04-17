@@ -11,7 +11,9 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     const categoryId = params.id;
     const body = await req.json();
     const supabase = createServerSupabaseClient();
-    if (!supabase) throw new Error('Supabase client initialization failed');
+    if (!supabase) {
+      return apiError('SUPABASE_INIT_FAILED', 'Supabase client initialization failed', 500);
+    }
     
     const { data, error } = await supabase
       .from('categories')
@@ -36,7 +38,9 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
   try {
     const categoryId = params.id;
     const supabase = createServerSupabaseClient();
-    if (!supabase) throw new Error('Supabase client initialization failed');
+    if (!supabase) {
+      return apiError('SUPABASE_INIT_FAILED', 'Supabase client initialization failed', 500);
+    }
     
     // Check if category has products
     const { count, error: countError } = await supabase

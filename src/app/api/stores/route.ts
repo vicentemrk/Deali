@@ -8,14 +8,14 @@ import { apiError } from '@/lib/apiError';
  */
 export async function GET() {
   try {
+    const supabase = createServerSupabaseClient();
+    if (!supabase) {
+      return apiError('SUPABASE_INIT_FAILED', 'Supabase client initialization failed', 500);
+    }
+
     const result = await cached(
       'stores:list',
       async () => {
-        const supabase = createServerSupabaseClient();
-        if (!supabase) {
-          throw new Error('Supabase client initialization failed');
-        }
-        
         const { data: stores, error: storesError } = await supabase
           .from('stores')
           .select('*')
@@ -23,19 +23,21 @@ export async function GET() {
 
         if (storesError) throw storesError;
 
-        // Fetch active offers count for each store
-        const { data: countsData, error: countsError } = await supabase
-          .from('activa_offers_view')
-          .select('store_slug');
-          
-        if (countsError) throw countsError;
+        const countPairs = await Promise.all(
+          (stores || []).map(async (store: any) => {
+            const { count, error } = await supabase
+              .from('activa_offers_view')
+              .select('*', { count: 'exact', head: true })
+              .eq('store_slug', store.slug);
 
-        const countsMap = countsData.reduce((acc: any, curr: any) => {
-          acc[curr.store_slug] = (acc[curr.store_slug] || 0) + 1;
-          return acc;
-        }, {});
+            if (error) throw error;
+            return [store.slug, count || 0] as const;
+          })
+        );
 
-        return stores.map(store => ({
+        const countsMap = Object.fromEntries(countPairs);
+
+        return stores.map((store: any) => ({
           ...store,
           active_offers_count: countsMap[store.slug] || 0
         }));

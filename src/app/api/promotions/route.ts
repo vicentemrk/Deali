@@ -8,7 +8,9 @@ import { apiError } from '@/lib/apiError';
 export async function GET() {
   try {
     const supabase = createServerSupabaseClient();
-    if (!supabase) throw new Error('Supabase client initialization failed');
+    if (!supabase) {
+      return apiError('SUPABASE_INIT_FAILED', 'Supabase client initialization failed', 500);
+    }
     
     // Get today's date in YYYY-MM-DD format
     const today = new Date().toISOString().split('T')[0];

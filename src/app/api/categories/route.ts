@@ -18,11 +18,14 @@ function buildTree(categories: any[], parentId: string | null = null): any[] {
  */
 export async function GET() {
   try {
+    const supabase = createServerSupabaseClient();
+    if (!supabase) {
+      return apiError('SUPABASE_INIT_FAILED', 'Supabase client initialization failed', 500);
+    }
+
     const result = await cached(
       'categories:tree',
       async () => {
-        const supabase = createServerSupabaseClient();
-        if (!supabase) throw new Error('Supabase client initialization failed');
         const { data, error } = await supabase.from('categories').select('*').order('name');
         
         if (error) throw error;

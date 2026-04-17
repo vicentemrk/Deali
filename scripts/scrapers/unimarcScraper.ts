@@ -103,10 +103,22 @@ export class UnimarcScraper implements StoreScraper {
     }
 
     const html = await response.text();
-    const nextDataMatch = html.match(/<script id="__NEXT_DATA__" type="application\/json">([\s\S]*?)<\/script>/i);
-    if (!nextDataMatch) return [];
+    const nextDataMatch = html.match(/<script[^>]*id="__NEXT_DATA__"[^>]*type="application\/json"[^>]*>([\s\S]*?)<\/script>/i);
+    const fallbackScriptMatch = html.match(/<script[^>]*type="application\/json"[^>]*>([\s\S]*?)<\/script>/i);
+    const nextDataRaw = nextDataMatch?.[1] || fallbackScriptMatch?.[1] || null;
+    if (!nextDataRaw) {
+      console.warn(`[UnimarcScraper] Missing __NEXT_DATA__ on ${url}`);
+      return [];
+    }
 
-    const nextData = JSON.parse(nextDataMatch[1]);
+    let nextData: any;
+    try {
+      nextData = JSON.parse(nextDataRaw);
+    } catch {
+      console.warn(`[UnimarcScraper] Invalid __NEXT_DATA__ payload on ${url}`);
+      return [];
+    }
+
     const queries = nextData?.props?.pageProps?.dehydratedState?.queries;
     if (!Array.isArray(queries)) return [];
 
@@ -116,6 +128,11 @@ export class UnimarcScraper implements StoreScraper {
     });
 
     const products = searchQuery?.state?.data?.data?.availableProducts;
+    if (!Array.isArray(products)) {
+      console.warn(`[UnimarcScraper] searchesIntelligence payload missing on ${url}`);
+      return [];
+    }
+
     return Array.isArray(products) ? products : [];
   }
 

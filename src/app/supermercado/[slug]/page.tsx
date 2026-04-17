@@ -25,17 +25,35 @@ export default async function SupermercadoPage({ params, searchParams }: PagePro
   const page = searchParams.page || '1';
   const category = searchParams.category || '';
   const sort = searchParams.sort || 'discount_desc';
+  const pageNumber = Math.max(1, Number.parseInt(page, 10) || 1);
+  const pageSize = 20;
 
   const query = new URLSearchParams({ page, sort });
   if (category) query.set('category', category);
   
   const res = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/stores/${params.slug}/offers?${query.toString()}`, { next: { revalidate: 1800 } });
   
-  let offers = [];
+    let offers = [];
+    let total = 0;
   if (res.ok) {
      const data = await res.json();
      offers = data.data;
+      total = data.total || 0;
   }
+
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    const hasPrev = pageNumber > 1;
+    const hasNext = pageNumber < totalPages;
+
+    const prevParams = new URLSearchParams();
+    prevParams.set('page', String(pageNumber - 1));
+    prevParams.set('sort', sort);
+    if (category) prevParams.set('category', category);
+
+    const nextParams = new URLSearchParams();
+    nextParams.set('page', String(pageNumber + 1));
+    nextParams.set('sort', sort);
+    if (category) nextParams.set('category', category);
 
   return (
     <div className="min-h-screen bg-bg-page font-sans text-gray-900 flex flex-col">
@@ -73,11 +91,39 @@ export default async function SupermercadoPage({ params, searchParams }: PagePro
         {offers.length === 0 ? (
           <p className="text-gray-500">No hay ofertas activas en esta tienda.</p>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {offers.map((offer: any) => (
-              <OfferCard key={offer.offer_id} offer={offer} />
-            ))}
-          </div>
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {offers.map((offer: any) => (
+                <OfferCard key={offer.offer_id} offer={offer} />
+              ))}
+            </div>
+
+            <div className="mt-8 flex items-center justify-center gap-4">
+              {hasPrev ? (
+                <Link
+                  href={`/supermercado/${params.slug}?${prevParams.toString()}`}
+                  className="bg-white px-4 py-2 rounded-full border border-border shadow-sm hover:shadow text-gray-700"
+                >
+                  Anterior
+                </Link>
+              ) : (
+                <span className="px-4 py-2 rounded-full border border-border text-gray-400">Anterior</span>
+              )}
+
+              <span className="text-sm text-gray-600">Pagina {pageNumber} de {totalPages}</span>
+
+              {hasNext ? (
+                <Link
+                  href={`/supermercado/${params.slug}?${nextParams.toString()}`}
+                  className="bg-white px-4 py-2 rounded-full border border-border shadow-sm hover:shadow text-gray-700"
+                >
+                  Siguiente
+                </Link>
+              ) : (
+                <span className="px-4 py-2 rounded-full border border-border text-gray-400">Siguiente</span>
+              )}
+            </div>
+          </>
         )}
       </main>
       <Footer />
