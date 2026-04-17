@@ -27,7 +27,7 @@ export interface VtexFetcherConfig {
   referer: string;
   /** Scraper name for logging */
   logTag: string;
-  /** Minimum products target. Default: 50 */
+  /** Minimum products target. Default: 75 */
   minProducts?: number;
   /** Max pages to fetch. Default: 6 (300 products scanned) */
   maxPages?: number;
@@ -165,7 +165,7 @@ function parseProduct(
 export async function fetchVtexMultiCategory(
   config: VtexFetcherConfig
 ): Promise<RawOffer[]> {
-  const minProducts = config.minProducts || 50;
+  const minProducts = config.minProducts || 75;
   const maxPages = config.maxPages || 6;
   const pageSize = config.pageSize || 50;
   const concurrency = config.concurrency || 3;

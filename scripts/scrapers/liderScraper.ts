@@ -124,7 +124,7 @@ export class LiderScraper implements StoreScraper {
           pathPrefix:   '/supermercado',
           referer:      'https://www.lider.cl/supermercado/ofertas',
           logTag:       'LiderScraper',
-          minProducts:  50,
+          minProducts:  75,
           concurrency:  3,
           extraHeaders: cookieHeader ? { Cookie: cookieHeader } : undefined,
         });
@@ -140,7 +140,7 @@ export class LiderScraper implements StoreScraper {
         logTag: 'LiderScraper',
         baseUrl: 'https://www.lider.cl',
         categoryUrls: LIDER_PROMO_URLS,
-        maxProducts: 50,
+        maxProducts: 75,
       });
       
       if (playwrightOffers.length > 0) {

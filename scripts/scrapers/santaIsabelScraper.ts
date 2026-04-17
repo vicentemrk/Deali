@@ -17,7 +17,7 @@ export class SantaIsabelScraper implements StoreScraper {
       siteBase:     'https://www.santaisabel.cl',
       referer:      'https://www.santaisabel.cl/ofertas',
       logTag:       'SantaIsabelScraper',
-      minProducts:  50,
+      minProducts:  75,
       concurrency:  3,
     });
   }

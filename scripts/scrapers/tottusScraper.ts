@@ -116,7 +116,7 @@ export class TottusScraper implements StoreScraper {
         siteBase:     'https://www.tottus.cl',
         referer:      'https://www.tottus.cl/tottus/ofertas',
         logTag:       'TottusScraper',
-        minProducts:  50,
+        minProducts:  75,
         concurrency:  3,
         extraHeaders: cookieHeader ? { Cookie: cookieHeader } : undefined,
       });
@@ -139,7 +139,7 @@ export class TottusScraper implements StoreScraper {
         'https://www.tottus.cl/tottus-cl/lista/CATG24754/Lacteos?sid=HO_CS_LAC_474',
         'https://www.tottus.cl/tottus-cl/lista/CATG27088/Electro-y-Tecnologia?sid=HO_LO_NON_456',
       ],
-      maxProducts: 50,
+      maxProducts: 75,
     });
   }
 }

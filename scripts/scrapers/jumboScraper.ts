@@ -6,7 +6,7 @@ import { fetchVtexMultiCategory } from './vtexCategoryFetcher';
  *
  * Uses VTEX CDN (jumbo.vteximg.com.br) to bypass Cloudflare/Datadome.
  * Fetches across priority categories (despensa, lácteos, bebidas, aseo…)
- * with p-limit concurrency, then falls back to global "Ofertas" if under 50.
+ * with p-limit concurrency, then falls back to global "Ofertas" if under 75.
  */
 export class JumboScraper implements StoreScraper {
   storeSlug = 'jumbo';
@@ -19,7 +19,7 @@ export class JumboScraper implements StoreScraper {
       siteBase:     'https://www.jumbo.cl',
       referer:      this.OFFERS_URL,
       logTag:       'JumboScraper',
-      minProducts:  50,
+      minProducts:  75,
       concurrency:  3,
     });
   }

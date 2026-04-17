@@ -1,6 +1,6 @@
 import { StoreScraper, RawOffer } from './types';
 
-const TARGET_PRODUCTS   = 50;
+const TARGET_PRODUCTS   = 75;
 
 type UnimarcSeller = {
   price?: string | number;

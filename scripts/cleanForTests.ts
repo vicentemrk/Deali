@@ -10,7 +10,7 @@ const supabase = createClient(
 );
 
 const KEEP_STORE_SLUG = 'acuenta';
-const KEEP_PRODUCTS_LIMIT = 10;
+const KEEP_PRODUCTS_LIMIT = 50;
 const BATCH_SIZE = 200;
 
 function chunk<T>(items: T[], size: number): T[][] {

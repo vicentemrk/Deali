@@ -1,7 +1,7 @@
 import { chromium } from 'playwright';
 import { StoreScraper, RawOffer } from './types';
 
-const TARGET_PRODUCTS   = 50;
+const TARGET_PRODUCTS   = 75;
 
 type ExtractedCard = {
   productName: string;

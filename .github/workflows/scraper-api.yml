@@ -1,14 +1,12 @@
 name: Scraper — API (Jumbo, Tottus, Líder, Santa Isabel)
 
 # Scrapers API: sin Playwright, sin browser, rápidos (~2-3 min/run)
-# Cada 30 minutos → datos frescos en las 4 tiendas API
-# Consumo estimado: 3 min × 48 runs/día × 30 días = 4.320 min/mes
+# Cada 3 horas → datos frescos en las 4 tiendas API
 # Tottus migrado de Playwright a VTEX API (tottus.vteximg.com.br)
 
 on:
   schedule:
-    - cron: "0 */3 * * *"  # Cada 30 minutos cron: '0 */3 * * *'
-  workflow_dispatch:
+    - cron: "0 */3 * * *"  # Cada 3 horas cada día
 
 # Secrets requeridos en Settings → Secrets → Actions:
 #   SUPABASE_URL            → URL del proyecto Supabase

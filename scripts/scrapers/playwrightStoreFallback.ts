@@ -34,7 +34,7 @@ export async function scrapeStoreWithPlaywrightFallback(
 
   const allOffers: RawOffer[] = [];
   const seenNames = new Set<string>();
-  const maxProducts = config.maxProducts ?? 50;
+  const maxProducts = config.maxProducts ?? 75;
 
   try {
     for (const categoryUrl of config.categoryUrls) {
