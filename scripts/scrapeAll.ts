@@ -8,13 +8,14 @@ import { SantaIsabelScraper } from './scrapers/santaIsabelScraper';
 import { StoreScraper, RawOffer } from './scrapers/types';
 import { mapCategory } from './lib/categoryMapper';
 import { logEvent } from './lib/logger';
+import { calculateDiscountPct, isGoodOffer } from './lib/offerQuality';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 
 // Cargar .env.local
 dotenv.config({ path: path.join(__dirname, '..', '.env.local') });
 
-const SCRAPE_LIMIT = parseInt(process.env.SCRAPE_LIMIT || '10', 10);
+const SCRAPE_LIMIT = parseInt(process.env.SCRAPE_LIMIT || '75', 10);
 
 const CANONICAL_CATEGORIES = [
   { name: 'Bebidas', slug: 'bebidas' },
@@ -34,10 +35,11 @@ const CANONICAL_CATEGORIES = [
 ];
 
 function selectOffersForScrape(rawOffers: RawOffer[]): RawOffer[] {
+  const filteredOffers = rawOffers.filter(isGoodOffer);
   const chosenByCategory = new Map<string, RawOffer>();
   const remainder: RawOffer[] = [];
 
-  for (const offer of rawOffers) {
+  for (const offer of filteredOffers) {
     const categorySlug = mapCategory(offer.categoryHint);
     if (!chosenByCategory.has(categorySlug)) {
       chosenByCategory.set(categorySlug, offer);
@@ -82,6 +84,7 @@ async function processOffers(
     storeSlug,
     selectedOffers: targetOffers.length,
     scrapedOffers: offers.length,
+    filteredOffers: offers.length - targetOffers.length,
   });
 
   // ── Step 1: Fetch all existing products for this store in 1 query ──────
@@ -200,10 +203,7 @@ async function processOffers(
 
   // ── Step 4: Batch upsert offers (1 query) ─────────────────────────────
   const offersPayload = allProductIds.map(({ id: productId, offer }) => {
-    const discountPct =
-      offer.originalPrice > offer.offerPrice
-        ? (((offer.originalPrice - offer.offerPrice) / offer.originalPrice) * 100).toFixed(2)
-        : '0.00';
+    const discountPct = calculateDiscountPct(offer.offerPrice, offer.originalPrice).toFixed(2);
     return {
       product_id:     productId,
       original_price: offer.originalPrice,

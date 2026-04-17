@@ -1,30 +1,31 @@
 import React from 'react';
-import Image from 'next/image';
 
 interface OfferCardProps {
-  offer: {
-    product_name: string;
-    product_image_url: string;
-    category_name: string;
-    original_price: number;
-    offer_price: number;
-    discount_pct: number;
-    offer_url: string;
-    start_date: string;
-    end_date: string;
-    store_name: string;
-    store_color_hex: string;
-    store_logo_url?: string;
-  };
+  offer: Record<string, any>;
 }
 
 export function OfferCard({ offer }: OfferCardProps) {
-  const hasKnownEndDate = Boolean(offer.end_date) && !String(offer.end_date).startsWith('9999');
-  const endDate = hasKnownEndDate ? new Date(offer.end_date) : null;
+  const productName = offer.product_name || offer.productName || 'Producto sin nombre';
+  const productImageUrl = offer.product_image_url || offer.image_url || offer.imageUrl || '';
+  const categoryName = offer.category_name || offer.categoryName || 'General';
+  const originalPrice = Number(offer.original_price ?? offer.originalPrice ?? 0);
+  const offerPrice = Number(offer.offer_price ?? offer.offerPrice ?? 0);
+  const discountPct = Number(offer.discount_pct ?? offer.discountPct ?? 0);
+  const offerUrl = offer.offer_url || offer.offerUrl || '#';
+  const endDateValue = offer.end_date || offer.endDate || null;
+  const hasKnownEndDate = Boolean(endDateValue) && !String(endDateValue).startsWith('9999');
+  const endDate = hasKnownEndDate ? new Date(endDateValue) : null;
   const now = new Date();
   const timeDiff = endDate ? endDate.getTime() - now.getTime() : Number.POSITIVE_INFINITY;
   const daysDiff = Math.ceil(timeDiff / (1000 * 3600 * 24));
   const expiresSoon = daysDiff <= 3 && daysDiff >= 0;
+  const initials = productName
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((word) => word[0])
+    .join('')
+    .toUpperCase();
 
   return (
     <div className="group relative flex flex-col bg-[#F0FDFA] rounded-3xl p-5 hover:-translate-y-2 transition-all duration-300 shadow-[0_4px_20px_-4px_rgba(13,148,136,0.1)] hover:shadow-[0_15px_30px_-8px_rgba(13,148,136,0.2)] border border-teal/10 overflow-hidden">
@@ -36,7 +37,7 @@ export function OfferCard({ offer }: OfferCardProps) {
 
       {/* Discount Badge */}
       <div className="absolute top-4 right-4 bg-deal-red text-white text-xs font-black px-3 py-1.5 rounded-xl shadow-[0_4px_10px_rgba(220,38,38,0.3)] z-20 transform rotate-3 group-hover:rotate-0 group-hover:scale-105 transition-all duration-300">
-        -{offer.discount_pct}%
+        -{discountPct}%
       </div>
 
       {expiresSoon && (
@@ -46,25 +47,31 @@ export function OfferCard({ offer }: OfferCardProps) {
       )}
 
       {/* Image Area */}
-      <div className="relative w-full h-44 mt-12 mb-4 z-10 group-hover:scale-110 transition-transform duration-500 ease-out">
-        <Image
-          src={offer.product_image_url || '/placeholder-product.png'}
-          alt={offer.product_name}
-          fill
-          sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 300px"
-          className="object-contain drop-shadow-sm mix-blend-multiply"
-        />
+      <div className="relative w-full h-44 mt-12 mb-4 z-10 group-hover:scale-110 transition-transform duration-500 ease-out rounded-2xl overflow-hidden bg-white/60 border border-white/70">
+        {productImageUrl ? (
+          <img
+            src={productImageUrl}
+            alt={productName}
+            className="absolute inset-0 h-full w-full object-contain drop-shadow-sm mix-blend-multiply p-2"
+            loading="lazy"
+            referrerPolicy="no-referrer"
+          />
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-teal-light via-white to-[#F0EEFF] text-5xl font-black text-teal/30">
+            {initials || 'DA'}
+          </div>
+        )}
       </div>
 
       <div className="flex flex-col flex-grow z-10 mt-2">
         {/* Category */}
         <span className="inline-block px-2 py-0.5 bg-[#F0EEFF] text-purple text-[10px] font-bold uppercase tracking-widest rounded-md w-max mb-2">
-          {offer.category_name || 'General'}
+          {categoryName}
         </span>
 
         {/* Title */}
         <h3 className="text-[15px] font-bold text-footer leading-snug mb-2 line-clamp-2 group-hover:text-teal transition-colors duration-200">
-          {offer.product_name}
+          {productName}
         </h3>
 
         <div className="flex-grow" />
@@ -72,11 +79,11 @@ export function OfferCard({ offer }: OfferCardProps) {
         {/* Pricing */}
         <div className="flex items-end gap-2 mt-4 mb-5">
           <span className="text-3xl font-black text-teal tracking-tighter">
-            ${offer.offer_price.toLocaleString('es-CL')}
+            ${offerPrice.toLocaleString('es-CL')}
           </span>
-          {offer.original_price > offer.offer_price && (
+          {originalPrice > offerPrice && (
             <span className="text-sm font-semibold text-gray-500 line-through mb-1">
-               ${offer.original_price.toLocaleString('es-CL')}
+               ${originalPrice.toLocaleString('es-CL')}
             </span>
           )}
         </div>
@@ -90,7 +97,7 @@ export function OfferCard({ offer }: OfferCardProps) {
           </div>
           
           <a 
-            href={offer.offer_url}
+            href={offerUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="group/btn flex items-center gap-2 bg-purple text-white text-xs font-bold px-4 py-2.5 rounded-xl hover:bg-opacity-90 transition-all shadow-md hover:shadow-lg hover:shadow-purple/30"

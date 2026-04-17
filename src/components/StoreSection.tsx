@@ -1,6 +1,5 @@
 import React from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { ArrowRight } from 'lucide-react';
 
 interface StoreSectionProps {
@@ -20,17 +19,6 @@ export function StoreSection({ store, offers }: StoreSectionProps) {
     <section className="mb-12">
       <div className="flex items-center justify-between mb-6 bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
         <div className="flex items-center gap-3">
-          {store.logo_url && (
-            <div className="relative w-10 h-10 rounded-full overflow-hidden flex-shrink-0">
-              <Image
-                src={store.logo_url}
-                alt={store.name}
-                fill
-                sizes="40px"
-                className="object-cover"
-              />
-            </div>
-          )}
           <h2 className="text-xl font-bold" style={{ color: store.color_hex }}>
             {store.name}
           </h2>
@@ -47,8 +35,30 @@ export function StoreSection({ store, offers }: StoreSectionProps) {
         {offers.map((offer) => (
           <article
             key={offer.offer_id}
-            className="min-w-[260px] max-w-[260px] snap-start bg-white border border-gray-100 rounded-2xl p-4 shadow-sm"
+            className="min-w-[260px] max-w-[260px] snap-start bg-white border border-gray-100 rounded-2xl p-4 shadow-sm flex flex-col"
           >
+            <div className="relative h-36 w-full mb-3 overflow-hidden rounded-xl bg-gradient-to-br from-teal-light via-white to-[#F0EEFF] border border-gray-100">
+              {offer.product_image_url || offer.image_url || offer.imageUrl ? (
+                <img
+                  src={offer.product_image_url || offer.image_url || offer.imageUrl}
+                  alt={offer.product_name}
+                  className="absolute inset-0 h-full w-full object-contain p-3"
+                  loading="lazy"
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <div className="absolute inset-0 flex items-center justify-center text-3xl font-black text-teal/30">
+                  {offer.product_name
+                    ?.split(' ')
+                    .filter(Boolean)
+                    .slice(0, 2)
+                    .map((part: string) => part[0])
+                    .join('')
+                    .toUpperCase() || 'DA'}
+                </div>
+              )}
+            </div>
+
             <h3 className="text-sm font-bold text-gray-800 line-clamp-2 mb-3">{offer.product_name}</h3>
             <div className="flex items-center gap-2 mb-3">
               <span className="text-xl font-black text-teal">${offer.offer_price.toLocaleString('es-CL')}</span>
