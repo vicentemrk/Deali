@@ -93,7 +93,7 @@ export function OfferCard({ offer }: OfferCardProps) {
           <div className="text-xs font-bold text-gray-600 bg-teal-light/60 px-3 py-2 rounded-lg border border-teal/10 shadow-sm">
             {endDate
               ? `Hasta ${endDate.toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}`
-              : 'No especificado'}
+              : 'Vigencia indefinida'}
           </div>
           
           <a 

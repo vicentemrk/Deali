@@ -70,11 +70,15 @@ async function fetchTottusRecommendedOffers(cookieHeader?: string): Promise<RawO
         const categoryPath = (product.categoryPaths?.[0] as string | undefined) ?? '';
         const categoryHint = categoryPath ? categoryPath.split('/').pop()?.split('||')?.[1] ?? null : null;
 
+        // Extract image from mediaUrls array
+        const mediaUrls: string[] = product.mediaUrls ?? [];
+        const imageUrl = mediaUrls.length > 0 ? `${mediaUrls[0]}/500x500` : '';
+
         seen.add(key);
         offers.push({
           productName: name,
           brand: product.brand || null,
-          imageUrl: product.imageURL || product.image || '',
+          imageUrl,
           offerUrl: product.url || 'https://www.tottus.cl/tottus-cl/content/ofertas-tottus',
           offerPrice,
           originalPrice,
@@ -101,10 +105,10 @@ export class TottusScraper implements StoreScraper {
 
   async scrape(): Promise<RawOffer[]> {
     const cookieHeader = process.env.TOTTUS_COOKIE?.trim();
-    const useLegacyVtex = process.env.TOTTUS_USE_VTEX === '1';
+    const useLegacyVtex = process.env.TOTTUS_USE_VTEX !== '0';
 
     const recommendedOffers = await fetchTottusRecommendedOffers(cookieHeader);
-    if (recommendedOffers.length > 0) return recommendedOffers;
+    if (recommendedOffers.length >= 10) return recommendedOffers; // Keep recommended API offers if we have at least 10
 
     if (useLegacyVtex) {
       const offers = await fetchVtexMultiCategory({
@@ -114,7 +118,7 @@ export class TottusScraper implements StoreScraper {
           'https://tottuscl.vtexassets.com',
         ],
         siteBase:     'https://www.tottus.cl',
-        referer:      'https://www.tottus.cl/tottus/ofertas',
+        referer:      'https://www.tottus.cl/tottus-cl/content/ofertas-tottus?sid=HO_BH_OFE_498',
         logTag:       'TottusScraper',
         minProducts:  75,
         concurrency:  3,
@@ -137,7 +141,6 @@ export class TottusScraper implements StoreScraper {
         'https://www.tottus.cl/tottus-cl/lista/CATG24758/Aseo-y-Limpieza?sid=HO_CS_ASE_471',
         'https://www.tottus.cl/tottus-cl/lista/CATG24751/Abarrotes?sid=HO_CS_DES_472',
         'https://www.tottus.cl/tottus-cl/lista/CATG24754/Lacteos?sid=HO_CS_LAC_474',
-        'https://www.tottus.cl/tottus-cl/lista/CATG27088/Electro-y-Tecnologia?sid=HO_LO_NON_456',
       ],
       maxProducts: 75,
     });

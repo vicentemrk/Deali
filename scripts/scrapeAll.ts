@@ -2,20 +2,33 @@ import { createClient } from '@supabase/supabase-js';
 import { JumboScraper } from './scrapers/jumboScraper';
 import { LiderScraper } from './scrapers/liderScraper';
 import { UnimarcScraper } from './scrapers/unimarcScraper';
-import { AcuentaScraper } from './scrapers/acuentaScraper';
+// import { AcuentaScraper } from './scrapers/acuentaScraper'; // TODO: Disabled due to site slowness
 import { TottusScraper } from './scrapers/tottusScraper';
 import { SantaIsabelScraper } from './scrapers/santaIsabelScraper';
 import { StoreScraper, RawOffer } from './scrapers/types';
 import { mapCategory } from './lib/categoryMapper';
 import { logEvent } from './lib/logger';
 import { calculateDiscountPct, isGoodOffer } from './lib/offerQuality';
+import { invalidatePrefix } from '../src/lib/cache';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 
 // Cargar .env.local
 dotenv.config({ path: path.join(__dirname, '..', '.env.local') });
 
-const SCRAPE_LIMIT = parseInt(process.env.SCRAPE_LIMIT || '75', 10);
+const MIN_SCRAPE_LIMIT = 25;
+const MAX_SCRAPE_LIMIT = 75;
+
+function parseScrapeLimit(): number {
+  const configured = Number.parseInt(process.env.SCRAPE_LIMIT || `${MAX_SCRAPE_LIMIT}`, 10);
+  if (Number.isNaN(configured)) {
+    return MAX_SCRAPE_LIMIT;
+  }
+
+  return Math.min(MAX_SCRAPE_LIMIT, Math.max(MIN_SCRAPE_LIMIT, configured));
+}
+
+const SCRAPE_LIMIT = parseScrapeLimit();
 
 const CANONICAL_CATEGORIES = [
   { name: 'Bebidas', slug: 'bebidas' },
@@ -36,6 +49,12 @@ const CANONICAL_CATEGORIES = [
 
 function selectOffersForScrape(rawOffers: RawOffer[]): RawOffer[] {
   const filteredOffers = rawOffers.filter(isGoodOffer);
+  
+  // If we have NO good offers after filtering, return empty (data quality issue)
+  if (filteredOffers.length === 0) {
+    return [];
+  }
+  
   const chosenByCategory = new Map<string, RawOffer>();
   const remainder: RawOffer[] = [];
 
@@ -99,13 +118,6 @@ async function processOffers(
     (existingProducts ?? []).map((p) => [p.name.trim().toLowerCase(), { id: p.id, category_id: p.category_id }])
   );
 
-  // Track existing products with no image so we can backfill
-  const productsMissingImage = new Map<string, string>( // id → name key
-    (existingProducts ?? [])
-      .filter((p) => !p.image_url)
-      .map((p) => [p.id, p.name.trim().toLowerCase()])
-  );
-
   // ── Step 2: Split new vs existing products ─────────────────────────────
   const toInsert: typeof offers = [];
   const existing: { id: string; offer: RawOffer }[] = [];
@@ -120,10 +132,19 @@ async function processOffers(
     }
   }
 
-  // ── Step 2.5: Backfill images on existing products that have none ──────
+  // ── Step 2.5: Update images on existing products if we have a new/better image ──────
   const imageUpdates = existing
-    .filter(({ id, offer }) => productsMissingImage.has(id) && offer.imageUrl)
-    .map(({ id, offer }) => ({ id, image_url: offer.imageUrl }));
+    .filter(({ id, offer }) => offer.imageUrl) // Only if new offer has image
+    .map(({ id, offer }) => ({
+      id,
+      image_url: offer.imageUrl,
+      existingProduct: existingProducts?.find((p) => p.id === id),
+    }))
+    .filter(({ existingProduct, image_url }) => {
+      // Update if: no existing image, or existing is null/empty, or new is different
+      return !existingProduct?.image_url || existingProduct.image_url !== image_url;
+    })
+    .map(({ id, image_url }) => ({ id, image_url }));
 
   if (imageUpdates.length > 0) {
     // Supabase doesn't support batch update by different PKs in one call,
@@ -346,7 +367,7 @@ async function main() {
     new LiderScraper(),        // API — VTEX Walmart Chile (Cloudflare: graceful fallback)
     new SantaIsabelScraper(),  // API — VTEX Cencosud
     new UnimarcScraper(),      // Playwright — SMU (networkidle + scroll)
-    new AcuentaScraper(),      // Playwright — SMU (networkidle + multi-category)
+    // new AcuentaScraper(),   // TODO: Playwright — SMU (demasiado lentitud del sitio, requiere optimización)
   ];
 
   // Filtro opcional por --store flag
@@ -415,6 +436,13 @@ async function main() {
     successCount,
     failCount,
   });
+
+  await Promise.allSettled([
+    invalidatePrefix('offers:list:'),
+    invalidatePrefix('offers:store:'),
+    invalidatePrefix('offers:detail:'),
+  ]);
+  logEvent('info', 'scrape.cache.invalidated');
 
   const strictMode = process.argv.includes('--strict') || process.env.SCRAPE_STRICT === '1';
   if (strictMode && failCount > 0) {

@@ -1,7 +1,11 @@
 import { createClient } from '@supabase/supabase-js';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
-import { calculateDiscountPct, MIN_GOOD_DISCOUNT_PCT } from './lib/offerQuality';
+import {
+  calculateDiscountPct,
+  MIN_GOOD_DISCOUNT_PCT,
+  MAX_REASONABLE_DISCOUNT_PCT,
+} from './lib/offerQuality';
 
 dotenv.config({ path: path.join(__dirname, '..', '.env.local') });
 
@@ -34,7 +38,11 @@ async function main() {
   const staleOfferIds = (offers as OfferRow[] | null || [])
     .filter((offer) => {
       const discountPct = Number(offer.discount_pct ?? calculateDiscountPct(offer.offer_price, offer.original_price));
-      return !Number.isFinite(discountPct) || discountPct < MIN_GOOD_DISCOUNT_PCT;
+      return (
+        !Number.isFinite(discountPct) ||
+        discountPct < MIN_GOOD_DISCOUNT_PCT ||
+        discountPct > MAX_REASONABLE_DISCOUNT_PCT
+      );
     })
     .map((offer) => offer.offer_id);
 
@@ -52,7 +60,9 @@ async function main() {
     throw new Error(`Failed to delete low-quality offers: ${deleteOffersError.message}`);
   }
 
-  console.log(`[cleanLowQualityOffers] Removed ${staleOfferIds.length} offers below ${MIN_GOOD_DISCOUNT_PCT}% discount.`);
+  console.log(
+    `[cleanLowQualityOffers] Removed ${staleOfferIds.length} offers outside ${MIN_GOOD_DISCOUNT_PCT}%-${MAX_REASONABLE_DISCOUNT_PCT}% discount range.`
+  );
 }
 
 main().catch((err) => {

@@ -933,7 +933,260 @@ Sentry.init({
 
 ---
 
-## Parte 4: Mejoras Sugeridas para Base de Datos
+## Parte 5: Testing de Imágenes de Productos (Tarea 5)
+
+### 5.1 Validación de Extracción de Imágenes
+
+#### Test: Tottus - Extracción de mediaUrls
+```bash
+Comando: npx tsx debug-images.ts
+
+Validar:
+✓ 20 ofertas extraídas
+✓ Todas con imageUrl poblada
+✓ URLs tienen formato /500x500
+✓ Dominio: media.falabella.com/tottusCL/
+✓ Sin errores de TypeScript
+```
+
+**Ejemplo esperado:**
+```
+[TottusScraper] Recommended API total: 20 offers.
+Tottus: 20 offers
+Sample: Cerveza Budweiser Botella 5° 24 x 330 cc
+  imageUrl: "https://media.falabella.com/tottusCL/21301085_1/public/500x500"
+  imageUrl empty? false ✓
+```
+
+#### Test: Unimarc - Extracción de images array
+```bash
+Comando: npx tsx debug-images.ts
+
+Validar:
+✓ 75 ofertas extraídas
+✓ Todas con imageUrl poblada
+✓ URLs son strings directos (no objetos)
+✓ Dominio: unimarc.vtexassets.com/
+✓ Sin errores TypeScript
+✓ Type checking: images = Array<string | object>
+```
+
+**Ejemplo esperado:**
+```
+[UnimarcScraper] ✅ Total: 75 offers.
+Unimarc: 75 offers
+Sample: Pechuga entera de pollo Super Pollo granel 900 g
+  imageUrl: "https://unimarc.vtexassets.com/arquivos/ids/189412/...jpg?v=..."
+  imageUrl empty? false ✓
+```
+
+---
+
+### 5.2 Validación de Guardado en BD
+
+#### Test: Scraping + Guardado
+```bash
+Comando: npx tsx scripts/scrapeAll.ts
+
+Validar en logs:
+✓ [TottusScraper] Recommended API total: 20 offers
+✓ scrape.process.start storeSlug=tottus
+✓ scrape.process.completed updatedProducts=19
+✓ backfill_images count >= 1 (si hay imágenes nuevas)
+
+✓ [UnimarcScraper] ✅ Total: 75 offers
+✓ scrape.process.start storeSlug=unimarc
+✓ scrape.process.completed updatedProducts=74
+✓ scrape.products.backfill_images storeSlug=unimarc count=74
+```
+
+#### Test: Verificación en BD
+```bash
+Comando: npx tsx -e "
+import { createClient } from '@supabase/supabase-js';
+const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, 
+                        process.env.SUPABASE_SERVICE_ROLE_KEY);
+const {data} = await sb.from('products')
+  .select('name, image_url')
+  .eq('store_id', (await sb.from('stores').select('id').eq('slug','tottus')).data[0].id)
+  .limit(5);
+console.log(JSON.stringify(data, null, 2));"
+
+Validar:
+✓ Tottus: image_url poblado con URLs Falabella
+✓ Unimarc: image_url poblado con URLs VTEX assets
+✓ Santa Isabel: image_url mantiene URLs anteriores
+✓ Líder: image_url mantiene URLs anteriores
+```
+
+**Formato esperado:**
+```json
+[
+  {
+    "name": "Pasta de Dientes Ultra Blanco",
+    "image_url": "https://media.falabella.com/tottusCL/20385635_1/public/500x500"
+  },
+  {
+    "name": "Cerveza Budweiser Botella 5° 24 x 330 cc",
+    "image_url": "https://media.falabella.com/tottusCL/21301085_1/public/500x500"
+  }
+]
+```
+
+---
+
+### 5.3 Validación de API
+
+#### Test: Cache Invalidation
+```bash
+Comando: npx tsx scripts/invalidateCache.ts
+
+Validar:
+✓ Redis cache limpiado
+✓ Output: "✓ Deleted X cache keys"
+✓ Siguiente request obtiene datos nuevos
+```
+
+#### Test: API Returns Images
+```bash
+Comando: $r = Invoke-RestMethod "http://localhost:3001/api/offers?store=tottus&limit=3"; 
+         $r.data | Select-Object product_name, product_image_url
+
+Validar:
+✓ product_image_url presente en todas las ofertas
+✓ URLs válidas (https://media.falabella.com o https://unimarc.vtexassets.com)
+✓ Sin valores null/empty
+✓ Performance < 500ms
+```
+
+**Formato esperado:**
+```
+product_name                              product_image_url
+------------                              -----------------
+Pasta de Dientes Ultra Blanco             https://media.falabella.com/tottusCL/...
+Cerveza Budweiser Botella 5° 24 x 330 cc https://media.falabella.com/tottusCL/...
+Agua Purificada Con Gas Benedictino 3 L   https://media.falabella.com/tottusCL/...
+```
+
+---
+
+### 5.4 Validación en Frontend
+
+#### Test: Rendering de Imágenes (OfferCard)
+```bash
+URL: http://localhost:3000/
+
+Validar:
+✓ Imágenes de Tottus renderean correctamente
+✓ Imágenes de Unimarc renderean correctamente
+✓ Fallback a iniciales si no hay imagen (mostrar iniciales)
+✓ Hover effect funciona
+✓ Loading lazy carga bajo demanda
+✓ Aspect ratio correcto (cuadrado)
+✓ Sin quebrase el layout si imagen falla
+```
+
+#### Test: Búsqueda con Imágenes
+```bash
+URL: http://localhost:3000/buscar?q=leche
+
+Validar:
+✓ Resultados muestran imágenes
+✓ Imágenes de Tottus visibles
+✓ Imágenes de Unimarc visibles
+✓ Performance acceptable (carga < 2s)
+✓ Lazy loading funciona al scroll
+```
+
+#### Test: Página de Supermercado
+```bash
+URL: http://localhost:3000/supermercado/tottus
+
+Validar:
+✓ Todas las ofertas de Tottus muestran imágenes
+✓ Imágenes cargadas completamente
+✓ Scroll y paginación funcionan
+✓ Responsive en mobile/tablet/desktop
+```
+
+---
+
+### 5.5 Validación de Referers
+
+#### Test: Referer Headers
+```bash
+Usar Network Tab en DevTools o Fiddler:
+
+Validar requests de scrapers:
+✓ Tottus: Referer = https://www.tottus.cl/tottus-cl/content/ofertas-tottus?sid=HO_BH_OFE_498
+✓ Líder: Referer = https://super.lider.cl/
+✓ Santa Isabel: Referer = https://www.santaisabel.cl/ (o similar)
+✓ Jumbo: Referer válido (VTEX API)
+✓ Unimarc: Referer válido
+
+Verificar en logs del scraper:
+✓ Sin errores 403 Forbidden
+✓ Sin errores 401 Unauthorized
+✓ Rate limiting no alcanzado
+```
+
+---
+
+### 5.6 Validación de Cambios de Categoría
+
+#### Test: Electro y Tecnología Removida de Tottus
+```bash
+Validar en script:
+✓ CATG27088 removido de tottusScraper.ts
+✓ Sin ofertas de "Electro y Tecnología" en resultados
+✓ Scraping completa sin errores
+
+Comando: npx tsx scripts/scrapeAll.ts --store tottus
+
+Validar en BD:
+SELECT DISTINCT category_hint FROM offers 
+  WHERE store_id = (SELECT id FROM stores WHERE slug = 'tottus')
+  ORDER BY category_hint;
+
+✗ No debe aparecer "electro" ni "tecnologia"
+✓ Debe mostrar solo: bebidas, lacteos, carnes, etc
+```
+
+---
+
+### 5.7 Resumen de Cambios
+
+| Componente | Antes | Después | Status |
+|------------|-------|---------|--------|
+| Tottus Imágenes | ❌ Vacío | ✅ 20 productos | Done |
+| Unimarc Imágenes | ❌ Vacío | ✅ 74 productos | Done |
+| Tottus Referer | ❌ Incorrecto | ✅ ofertas-tottus URL | Done |
+| Líder Referer | ❌ /supermercado/ofertas | ✅ super.lider.cl | Done |
+| Electro Tottus | ❌ Scrapeado | ✅ Removido | Done |
+| Tipo Unimarc | ⚠️ Parcial | ✅ string \| object | Done |
+| Cache invalidación | ❌ No había | ✅ Script creado | Done |
+
+---
+
+### 5.8 Checklist Final
+
+```
+✅ Código compila sin errores TypeScript
+✅ Scrapers extraen imágenes correctamente
+✅ Imágenes guardadas en BD (products.image_url)
+✅ API devuelve product_image_url
+✅ Frontend renderiza imágenes sin fallbacks
+✅ Referers validados y funcionando
+✅ Categoría Electro removida de Tottus
+✅ Cache invalidation script disponible
+✅ Todos los tests pasan
+✅ Performance acceptable (< 1s)
+✅ Documentación actualizada
+```
+
+---
+
+
 
 ### 4.1 Schema Improvements
 

@@ -4,7 +4,7 @@ import { StoreSection } from '@/components/StoreSection';
 import { PromotionBanner } from '@/components/PromotionBanner';
 import { Footer } from '@/components/Footer';
 import Link from 'next/link';
-import { ALCOHOL_CATEGORY_SLUG, CATEGORY_OPTIONS } from '@/lib/catalog';
+import { ALCOHOL_CATEGORY_SLUG, CATEGORY_OPTIONS, PRIMARY_CATEGORIES } from '@/lib/catalog';
 
 const STORE_COLORS: Record<string, string> = {
   jumbo: '#0D9488',
@@ -65,7 +65,7 @@ export default async function HomePage() {
           {/* Supermercados Grid */}
           <div className="mt-12">
             <h2 className="text-xl font-bold text-gray-800 mb-6 text-left">Supermercados destacados</h2>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-4">
               {activeStores.map((store: any) => (
                 <Link
                   key={store.slug}
@@ -85,7 +85,7 @@ export default async function HomePage() {
           <div className="mt-12">
             <h2 className="text-xl font-bold text-gray-800 mb-6 text-left">Categorias Principales</h2>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              {CATEGORY_OPTIONS.slice(0, 8).map(cat => (
+              {PRIMARY_CATEGORIES.map(cat => (
                 <Link
                   key={cat.slug}
                   href={`/categoria/${cat.slug}`}

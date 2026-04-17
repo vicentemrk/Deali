@@ -1,7 +1,7 @@
 import { RawOffer } from '../scrapers/types';
 
 export const MIN_GOOD_DISCOUNT_PCT = 5;
-export const MAX_REASONABLE_DISCOUNT_PCT = 80;
+export const MAX_REASONABLE_DISCOUNT_PCT = 90;
 
 export function calculateDiscountPct(offerPrice: number, originalPrice: number): number {
   if (

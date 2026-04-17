@@ -122,7 +122,7 @@ export class LiderScraper implements StoreScraper {
           ],
           siteBase:     'https://www.lider.cl',
           pathPrefix:   '/supermercado',
-          referer:      'https://www.lider.cl/supermercado/ofertas',
+        referer:      'https://super.lider.cl/',
           logTag:       'LiderScraper',
           minProducts:  75,
           concurrency:  3,

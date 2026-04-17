@@ -15,6 +15,8 @@ export const CATEGORY_OPTIONS = [
   { name: 'Despensa', slug: 'despensa' },
 ] as const;
 
+export const PRIMARY_CATEGORIES = CATEGORY_OPTIONS.slice(0, 4);
+
 export const ALCOHOL_CATEGORY_SLUG = 'bebidas-alcoholicas';
 
 export const SORT_OPTIONS = [

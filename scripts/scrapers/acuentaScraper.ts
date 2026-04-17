@@ -27,9 +27,9 @@ export class AcuentaScraper implements StoreScraper {
 
   private readonly CAMPAIGN_URLS = [
     'https://www.acuenta.cl/ca/luka-dos-y-tres-lukas/60',
-    ...Array.from({ length: 9 }, (_, i) => `https://www.acuenta.cl/ca/luka-dos-y-tres-lukas/60?currentPage=${i + 2}`),
+    'https://www.acuenta.cl/ca/luka-dos-y-tres-lukas/60?currentPage=2',
+    'https://www.acuenta.cl/ca/luka-dos-y-tres-lukas/60?currentPage=3',
     'https://www.acuenta.cl/ca/canasta-ahorradora/400',
-    'https://www.acuenta.cl/ca/canasta-ahorradora/400?currentPage=2',
   ];
 
   private parseCategoryHintFromUrl(url: string): string | null {
@@ -38,8 +38,22 @@ export class AcuentaScraper implements StoreScraper {
   }
 
   private parseMoney(raw: string | null | undefined): number {
-    const digits = (raw || '').replace(/[^\d]/g, '');
-    return digits ? parseInt(digits, 10) : 0;
+    return this.parseMoneyValues(raw)[0] || 0;
+  }
+
+  private parseMoneyValues(raw: string | null | undefined): number[] {
+    if (!raw) return [];
+
+    const fromCurrency = Array.from(raw.matchAll(/\$\s*([\d\.]+)/g), (match) => match[1]);
+    const candidates = fromCurrency.length > 0
+      ? fromCurrency
+      : (raw.match(/\d{1,3}(?:\.\d{3})+|\d+/g) || []);
+
+    const values = candidates
+      .map((value) => parseInt(value.replace(/\./g, ''), 10))
+      .filter((value) => Number.isFinite(value) && value > 0 && value <= 1_000_000);
+
+    return values;
   }
 
   private async safeText(locator: any): Promise<string | null> {
@@ -91,8 +105,18 @@ export class AcuentaScraper implements StoreScraper {
       const crossedText = await this.safeText(card.locator('[data-testid^="crossed-out-price"], s, del').first());
       const text = (await this.safeInnerText(card)).replace(/\s+/g, ' ').trim();
 
-      let offerPrice = this.parseMoney(basePriceText);
-      let originalPrice = this.parseMoney(crossedText);
+      const basePriceValues = this.parseMoneyValues(basePriceText);
+      const crossedValues = this.parseMoneyValues(crossedText);
+
+      let offerPrice = basePriceValues[0] || 0;
+      let originalPrice = 0;
+
+      if (crossedValues.length > 0) {
+        const greaterThanOffer = crossedValues.filter((value) => value > offerPrice);
+        originalPrice = greaterThanOffer.length > 0
+          ? Math.min(...greaterThanOffer)
+          : Math.max(...crossedValues);
+      }
 
       const candidates: Array<{ value: number; isPerUnit: boolean; isEach: boolean }> = [];
       const re = /\$\s*([\d\.]+)([^$]{0,26})/g;
@@ -117,7 +141,7 @@ export class AcuentaScraper implements StoreScraper {
 
       if (!originalPrice && numericCandidates.length >= 2) {
         const greater = numericCandidates.filter((value) => value > offerPrice);
-        if (greater.length > 0) originalPrice = greater[greater.length - 1];
+        if (greater.length > 0) originalPrice = Math.min(...greater);
       }
 
       const multiBuyMatch = text.match(/(\d+)\s*X\s*\$\s*([\d\.]+)/i);
@@ -173,16 +197,33 @@ export class AcuentaScraper implements StoreScraper {
         });
         page = await context.newPage();
 
-        await page.goto(campaignUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
-        await page.waitForTimeout(4_000);
+        try {
+          await page.goto(campaignUrl, { waitUntil: 'load', timeout: 15_000 });
+        } catch (gotoErr) {
+          // Fallback: try domcontentloaded with shorter timeout
+          try {
+            await Promise.race([
+              page.goto(campaignUrl, { waitUntil: 'domcontentloaded', timeout: 10_000 }),
+              new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8_000))
+            ]);
+          } catch {
+            console.warn(`[AcuentaScraper] Failed to load ${campaignUrl}, skipping...`);
+            continue;
+          }
+        }
 
-        const hasProducts = await page.waitForSelector(
-          '[class*="StyledCard"], a.containerCard, [data-testid="card-name"], a[href*="/p/"]',
-          { timeout: 15_000 }
-        ).then(() => true).catch(() => false);
+        await page.waitForTimeout(1_500);
+
+        const hasProducts = await Promise.race([
+          page.waitForSelector(
+            '[class*="StyledCard"], a.containerCard, [data-testid="card-name"], a[href*="/p/"]',
+            { timeout: 5_000 }
+          ).then(() => true).catch(() => false),
+          new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 6_000))
+        ]);
 
         if (!hasProducts) {
-          console.warn(`[AcuentaScraper] Selector timeout on ${campaignUrl}`);
+          console.warn(`[AcuentaScraper] No products found on ${campaignUrl}, skipping...`);
           continue;
         }
 

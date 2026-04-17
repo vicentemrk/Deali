@@ -10,10 +10,11 @@
 
 ### 📖 Documentación Completa
 - **[DOCUMENTACION_TAREAS.md](DOCUMENTACION_TAREAS.md)**
-  - Descripción detallada de las 4 tareas completadas
+  - Descripción detallada de las 5 tareas completadas
   - Problemas encontrados y soluciones
   - Estructura de archivos creados
-  - Estadísticas de tests (52 tests, 100% pasando)
+  - Estadísticas de tests (66 tests, 100% pasando)
+  - Tarea 5: Imágenes de Productos y Referers
 
 ---
 
@@ -126,7 +127,15 @@ Deali/
 - **Tests**: 14 (todos pasando)
 - **Validaciones**: 14 reglas de integridad de datos
 
----
+### ✅ Tarea 5: Imágenes de Productos y Referers
+- **Ubicación**: `scripts/scrapers/tottusScraper.ts`, `unimarcScraper.ts`, `liderScraper.ts`
+- **Cambios**:
+  - Tottus: 20 productos con imágenes (mediaUrls → /500x500)
+  - Unimarc: 74 productos con imágenes (images array string)
+  - Referers: Tottus y Líder actualizados
+  - Categoría: Electro y Tecnología removida de Tottus
+- **Nuevo script**: `scripts/invalidateCache.ts` para limpiar Redis
+- **Tests**: Validación post-scraping en TEST_PLAN_COMPLETO.md (Parte 5)
 
 ## Flujo de Trabajo Recomendado
 

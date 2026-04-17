@@ -11,7 +11,7 @@ type UnimarcProduct = {
   name?: string;
   brand?: string;
   detailUrl?: string;
-  images?: Array<{ src?: string; url?: string }>;
+  images?: Array<string | { src?: string; url?: string }>;
   categories?: string[];
   promotion?: {
     price?: number;
@@ -73,7 +73,15 @@ export class UnimarcScraper implements StoreScraper {
 
     if (!offerPrice || !originalPrice || offerPrice >= originalPrice) return null;
 
-    const imageUrl = product.images?.[0]?.src || product.images?.[0]?.url || '';
+    // Unimarc images can be: string directly in array, or objects with src/url
+    let imageUrl = '';
+    const firstImage = product.images?.[0];
+    if (typeof firstImage === 'string') {
+      imageUrl = firstImage;
+    } else if (typeof firstImage === 'object') {
+      imageUrl = firstImage.src || firstImage.url || '';
+    }
+
     const detailUrl = product.detailUrl || '';
 
     return {

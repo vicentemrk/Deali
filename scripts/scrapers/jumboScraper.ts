@@ -20,6 +20,7 @@ export class JumboScraper implements StoreScraper {
       referer:      this.OFFERS_URL,
       logTag:       'JumboScraper',
       minProducts:  75,
+      maxPages:     20,
       concurrency:  3,
     });
   }

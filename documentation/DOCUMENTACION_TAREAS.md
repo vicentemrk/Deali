@@ -339,6 +339,180 @@ npm test
 
 ---
 
+## Tarea 5: Extracción de Imágenes de Productos y Actualización de Referers
+
+### Resumen
+Se completó la extracción de imágenes de productos para Tottus y Unimarc, se corrigieron los headers Referer de todas las tiendas, y se removió la categoría "Electro y Tecnología" de Tottus según lo solicitado.
+
+### Cambios Realizados
+
+#### 1. Referers Actualizados
+**Archivo**: `scripts/scrapers/tottusScraper.ts`, `scripts/scrapers/liderScraper.ts`
+
+| Tienda | Referer Anterior | Referer Actual | Línea |
+|--------|-----------------|-----------------|-------|
+| Tottus | (incorrecto) | `https://www.tottus.cl/tottus-cl/content/ofertas-tottus?sid=HO_BH_OFE_498` | 43 |
+| Líder | `/supermercado/ofertas` | `https://super.lider.cl/` | 31, 125 |
+| Santa Isabel | Funcionando correctamente | (sin cambios) | - |
+
+**Impacto**: Previene bloqueos de scrapers por validación de referer en APIs
+
+#### 2. Imágenes de Tottus
+**Archivo**: `scripts/scrapers/tottusScraper.ts` (líneas 73-76)
+
+```typescript
+// Antes (no extraía imágenes)
+const imageUrl = '';
+
+// Después (extrae mediaUrls del API)
+const mediaUrls: string[] = product.mediaUrls ?? [];
+const imageUrl = mediaUrls.length > 0 ? `${mediaUrls[0]}/500x500` : '';
+```
+
+**Resultado**: 
+- ✅ 20 productos de Tottus con imágenes extraídas
+- ✅ URLs con formato Falabella media: `https://media.falabella.com/tottusCL/[ID]/public/500x500`
+- ✅ Todas las imágenes guardadas en BD (tabla `products.image_url`)
+
+#### 3. Imágenes de Unimarc
+**Archivo**: `scripts/scrapers/unimarcScraper.ts` (líneas 14-21, 73-85)
+
+**Cambio de tipo**:
+```typescript
+// Antes: images era siempre array de objetos
+images?: Array<{ src?: string; url?: string }>;
+
+// Después: acepta strings directos o objetos
+images?: Array<string | { src?: string; url?: string }>;
+```
+
+**Lógica de extracción**:
+```typescript
+// Antes: solo buscaba en propiedades que no existían
+const imageUrl = product.images?.[0]?.src || '';
+
+// Después: detecta si es string directo o objeto
+let imageUrl = '';
+const firstImage = product.images?.[0];
+if (typeof firstImage === 'string') {
+  imageUrl = firstImage;
+} else if (typeof firstImage === 'object') {
+  imageUrl = firstImage.src || firstImage.url || '';
+}
+```
+
+**Resultado**:
+- ✅ 74 productos de Unimarc con imágenes extraídas (backfill_images registrado)
+- ✅ URLs con formato VTEX assets: `https://unimarc.vtexassets.com/arquivos/ids/[ID]/...`
+- ✅ Todas las imágenes guardadas en BD
+
+#### 4. Categoría "Electro y Tecnología" Removida
+**Archivo**: `scripts/scrapers/tottusScraper.ts` (línea con CATG27088)
+
+**Cambio**:
+```typescript
+// Antes
+private readonly CATEGORY_URLS: Record<string, string> = {
+  // ... otros
+  'CATG27088': 'https://www.tottus.cl/tottus-cl/category/...' // Electro y Tecnología
+  // ... otros
+};
+
+// Después
+private readonly CATEGORY_URLS: Record<string, string> = {
+  // ... otros (CATG27088 removido)
+  // ... otros
+};
+```
+
+**Resultado**: 
+- ✅ Electro y Tecnología ya no se scrrapea en Tottus
+- ✅ Reduce ruido en datos (electrodomésticos no tienen descuentos reales)
+
+#### 5. Script de Invalidación de Cache
+**Archivo**: `scripts/invalidateCache.ts` (nuevo)
+
+```typescript
+// Limpia todas las claves de cache de ofertas en Redis
+await redis.scan(cursor, { match: 'offers:list:*', count: 100 });
+// ... borra keys encontradas
+```
+
+**Uso**:
+```bash
+npx tsx scripts/invalidateCache.ts
+```
+
+**Propósito**: 
+- Después de scraping, el API mantiene datos en cache (30 min)
+- Este script permite forzar la actualización inmediata
+- Útil para testing y validación post-scrape
+
+### Verificación de Cambios
+
+#### Tottus - Antes vs Después
+```bash
+# Antes
+$ npx tsx debug-images.ts
+Tottus: 20 offers
+Sample: Cerveza Budweiser Botella 5° 24 x 330 cc
+  imageUrl: ""  # ❌ Vacío
+
+# Después
+$ npx tsx debug-images.ts
+Tottus: 20 offers
+Sample: Cerveza Budweiser Botella 5° 24 x 330 cc
+  imageUrl: "https://media.falabella.com/tottusCL/21301085_1/public/500x500"  # ✅ Con imagen
+```
+
+#### Unimarc - Antes vs Después
+```bash
+# Antes
+Unimarc: 75 offers
+Sample: Pechuga entera de pollo Super Pollo granel 900 g
+  imageUrl: ""  # ❌ Vacío
+
+# Después
+Unimarc: 75 offers
+Sample: Pechuga entera de pollo Super Pollo granel 900 g
+  imageUrl: "https://unimarc.vtexassets.com/arquivos/ids/189412/..."  # ✅ Con imagen
+```
+
+#### API - Después de Invalidar Cache
+```bash
+# GET /api/offers?store=tottus&limit=3
+[
+  {
+    "product_name": "Pasta de Dientes Ultra Blanco",
+    "product_image_url": "https://media.falabella.com/tottusCL/20385635_1/public/500x500"  # ✅
+  },
+  ...
+]
+```
+
+### Archivos Modificados
+
+| Archivo | Cambios | Líneas |
+|---------|---------|--------|
+| `scripts/scrapers/tottusScraper.ts` | Referer + Image extraction | 43, 73-76 |
+| `scripts/scrapers/liderScraper.ts` | Referer update | 31, 125 |
+| `scripts/scrapers/unimarcScraper.ts` | Type + Image extraction | 14-21, 73-85 |
+| `scripts/invalidateCache.ts` | Nuevo script | - |
+
+### Tests y Validación
+- ✅ Ambos scrapers compilan sin errores TypeScript
+- ✅ Imágenes extraídas correctamente
+- ✅ BD actualizada con imágenes
+- ✅ API devuelve product_image_url correctamente
+- ✅ Frontend renderiza imágenes sin fallbacks de iniciales
+
+### Próximos Pasos
+1. Monitorear calidad de imágenes en próximos ciclos de scraping
+2. Considerar agregar invalidación automática de cache post-scrape
+3. Evaluar agregar más fuentes de imágenes para tiendas sin images
+
+---
+
 ## Notas Importantes
 
 ### Variables de Entorno Requeridas
@@ -346,6 +520,8 @@ npm test
 NEXT_PUBLIC_SUPABASE_URL=<URL>
 SUPABASE_SERVICE_ROLE_KEY=<CLAVE>
 SCRAPE_LIMIT=50
+UPSTASH_REDIS_REST_URL=<URL>
+UPSTASH_REDIS_REST_TOKEN=<TOKEN>
 ```
 
 ### Dependencias

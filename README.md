@@ -52,6 +52,7 @@ App: `http://localhost:3000`
 - `npm run lint`: lint
 - `npx tsx scripts/scrapeAll.ts`: ejecutar scraping completo
 - `npx tsx scripts/scrapeAll.ts --store jumbo`: scraping de una tienda
+- `npx tsx scripts/invalidateCache.ts`: limpiar cache Redis de ofertas
 
 ### Estructura principal
 
@@ -59,6 +60,7 @@ App: `http://localhost:3000`
 - `src/app/admin`: panel de administración
 - `src/components`: componentes UI
 - `scripts/scrapers`: scrapers por tienda
+- `scripts/invalidateCache.ts`: utilidad para invalidar cache Redis
 - `supabase/migrations`: migraciones SQL
 
 ### Seguridad y operación

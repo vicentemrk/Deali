@@ -84,6 +84,79 @@ npx tsx scripts/qa/validateOfferQuality.ts --store jumbo --limit 500 --strict
 
 ---
 
+## 🔄 Scripts de Scraping y Cache
+
+### Ejecutar Scraping Completo
+```bash
+# Scraping de todas las tiendas
+npx tsx scripts/scrapeAll.ts
+
+# Scraping de tienda específica
+npx tsx scripts/scrapeAll.ts --store tottus
+npx tsx scripts/scrapeAll.ts --store jumbo
+npx tsx scripts/scrapeAll.ts --store santa-isabel
+npx tsx scripts/scrapeAll.ts --store lider
+npx tsx scripts/scrapeAll.ts --store unimarc
+```
+
+**Qué hace:**
+- ✅ Extrae ofertas de cada tienda
+- ✅ Normaliza categorías
+- ✅ Extrae imágenes de productos
+- ✅ Valida precios y descuentos
+- ✅ Guarda/actualiza en Supabase
+- ℹ️ Mantiene cache de Redis
+
+### Invalidar Cache (Importante después de Scraping)
+```bash
+# Limpiar cache de ofertas en Redis
+npx tsx scripts/invalidateCache.ts
+```
+
+**Cuándo usar:**
+- Después de scraping para ver cambios inmediatos
+- Si el API devuelve datos viejos
+- Para testing y validación
+
+**Resultado:**
+```
+Invalidating offers cache...
+✓ Deleted 5 cache keys
+```
+
+---
+
+## 📊 Tarea 5: Imágenes de Productos
+
+### Cambios Implementados
+
+#### Tottus (20 productos con imágenes)
+```bash
+Referer: https://www.tottus.cl/tottus-cl/content/ofertas-tottus?sid=HO_BH_OFE_498
+Image Source: mediaUrls API field → /500x500
+Example: https://media.falabella.com/tottusCL/21301085_1/public/500x500
+```
+
+#### Unimarc (74 productos con imágenes)
+```bash
+Referer: https://www.unimarc.cl/
+Image Source: images[] string array
+Example: https://unimarc.vtexassets.com/arquivos/ids/189412/...jpg
+```
+
+#### Líder (Referer actualizado)
+```bash
+Referer: https://super.lider.cl/
+(Imágenes existentes mantienen funcionando)
+```
+
+#### Cambios de Categoría
+```bash
+Tottus: Categoría "Electro y Tecnología" removida
+```
+
+---
+
 ## ⚙️ Configuración
 
 ### Variables de Entorno (.env.local)
@@ -98,6 +171,10 @@ SCRAPE_LIMIT=50  # Ofertas por tienda (antes era 10)
 
 # Cookies de sesión (opcional)
 TOTTUS_COOKIE=<cookie>
+
+# Redis Cache (opcional, pero recomendado)
+UPSTASH_REDIS_REST_URL=<url>
+UPSTASH_REDIS_REST_TOKEN=<token>
 LIDER_COOKIE=<cookie>
 ```
 
