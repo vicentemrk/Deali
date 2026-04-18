@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { Redis } from '@upstash/redis';
+import { isAdminUser } from '@/lib/adminAuth';
 import {
   RATE_LIMIT_WINDOW_SECONDS,
   getRateLimitPolicy,
@@ -108,9 +109,9 @@ export async function middleware(request: NextRequest) {
 
     const { data: { user } } = await supabase.auth.getUser();
 
-    if (!user) {
+    if (!isAdminUser(user)) {
       if (isApiAdmin) {
-        return NextResponse.json({ error: true, code: 'UNAUTHORIZED', message: 'Unauthorized' }, { status: 401 });
+        return NextResponse.json({ error: true, code: 'FORBIDDEN', message: 'Admin role required' }, { status: 403 });
       }
       const url = request.nextUrl.clone();
       url.pathname = '/login';

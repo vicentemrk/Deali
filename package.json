@@ -10,7 +10,9 @@
     "test": "npm run test:src && npm run test:scripts",
     "test:src": "tsx --test src/**/*.test.ts",
     "test:scripts": "tsx --test scripts/**/__tests__/*.test.ts",
-    "clean:low-quality": "tsx scripts/cleanLowQualityOffers.ts"
+    "clean:low-quality": "tsx scripts/cleanLowQualityOffers.ts",
+    "monitor:db": "tsx scripts/monitorDbRealtime.ts",
+    "monitor:db:watch": "tsx scripts/monitorDbRealtime.ts --watch --interval=30000"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

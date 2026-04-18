@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { invalidatePrefix } from '@/lib/cache';
 import { apiError } from '@/lib/apiError';
+import { isAdminUser } from '@/lib/adminAuth';
+import { updateCategorySchema } from '@/lib/adminValidation';
 
 /**
  * PUT request to update a category.
@@ -9,10 +11,15 @@ import { apiError } from '@/lib/apiError';
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const categoryId = params.id;
-    const body = await req.json();
+    const body = updateCategorySchema.parse(await req.json());
     const supabase = createServerSupabaseClient();
     if (!supabase) {
       return apiError('SUPABASE_INIT_FAILED', 'Supabase client initialization failed', 500);
+    }
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !isAdminUser(user)) {
+      return apiError('FORBIDDEN', 'Admin role required', 403);
     }
     
     const { data, error } = await supabase
@@ -27,6 +34,9 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     await invalidatePrefix('categories:');
     return NextResponse.json(data);
   } catch (error: any) {
+    if (error?.name === 'ZodError') {
+      return apiError('INVALID_PAYLOAD', error.message || 'Invalid request payload', 400);
+    }
     return apiError('UPDATE_CATEGORY_FAILED', error.message || String(error), 500);
   }
 }
@@ -40,6 +50,11 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     const supabase = createServerSupabaseClient();
     if (!supabase) {
       return apiError('SUPABASE_INIT_FAILED', 'Supabase client initialization failed', 500);
+    }
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !isAdminUser(user)) {
+      return apiError('FORBIDDEN', 'Admin role required', 403);
     }
     
     // Check if category has products

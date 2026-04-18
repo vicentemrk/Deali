@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { apiError } from '@/lib/apiError';
+import { isAdminUser } from '@/lib/adminAuth';
 import { spawn } from 'child_process';
 
 /**
@@ -76,8 +77,8 @@ export async function POST(req: NextRequest) {
     }
 
     const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return apiError('UNAUTHORIZED', 'Unauthorized', 401);
+    if (authError || !isAdminUser(user)) {
+      return apiError('FORBIDDEN', 'Admin role required', 403);
     }
 
     // Get optional store filter from query params or body
@@ -138,8 +139,8 @@ export async function GET(req: NextRequest) {
     }
 
     const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return apiError('UNAUTHORIZED', 'Unauthorized', 401);
+    if (authError || !isAdminUser(user)) {
+      return apiError('FORBIDDEN', 'Admin role required', 403);
     }
 
     // Get running jobs

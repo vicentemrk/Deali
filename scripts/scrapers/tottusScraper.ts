@@ -6,7 +6,25 @@ import { parseCLP } from '../lib/priceParser';
 const TOTTUS_WIDGET_IDS = [
   'a9ac056e-1873-41c6-a7dc-c21087548c41',
   'f7bc8088-4853-4d16-bc6e-d1bf385a05f6',
+  '34f3f74d-94ba-4a9b-8b9c-fd6d89cf7ebf',
+  'ecf69f65-32cb-4856-8fbc-4aef0ec572df',
 ];
+
+const TARGET_PRODUCTS = 75;
+
+function mergeUniqueOffers(primary: RawOffer[], secondary: RawOffer[]): RawOffer[] {
+  const merged = [...primary];
+  const seen = new Set(primary.map((offer) => offer.productName.trim().toLowerCase()));
+
+  for (const offer of secondary) {
+    const key = offer.productName.trim().toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(offer);
+  }
+
+  return merged;
+}
 
 const TOTTUS_ZONES = [
   'PCL1223', 'PCL2976', 'PCL3651', 'PCL3887', 'PCL2709', 'PCL2829', 'PCL3505', 'PCL3136',
@@ -102,11 +120,10 @@ export class TottusScraper implements StoreScraper {
     const cookieHeader = process.env.TOTTUS_COOKIE?.trim();
     const useLegacyVtex = process.env.TOTTUS_USE_VTEX !== '0';
 
-    const recommendedOffers = await fetchTottusRecommendedOffers(cookieHeader);
-    if (recommendedOffers.length >= 10) return recommendedOffers; // Keep recommended API offers if we have at least 10
+    let offers = await fetchTottusRecommendedOffers(cookieHeader);
 
-    if (useLegacyVtex) {
-      const offers = await fetchVtexMultiCategory({
+    if (useLegacyVtex && offers.length < TARGET_PRODUCTS) {
+      const vtexOffers = await fetchVtexMultiCategory({
         cdnBase:      'https://tottus.vteximg.com.br',
         fallbackBases:[
           'https://www.tottus.cl',
@@ -120,24 +137,31 @@ export class TottusScraper implements StoreScraper {
         extraHeaders: cookieHeader ? { Cookie: cookieHeader } : undefined,
       });
 
-      if (offers.length > 0) return offers;
+      offers = mergeUniqueOffers(offers, vtexOffers);
     }
 
     if (!cookieHeader) {
       console.warn('[TottusScraper] Blocked by Cloudflare. Set TOTTUS_COOKIE in .env.local to reuse a valid browser session.');
     }
 
-    return scrapeStoreWithPlaywrightFallback({
-      logTag: 'TottusScraper',
-      baseUrl: 'https://www.tottus.cl',
-      categoryUrls: [
-        'https://www.tottus.cl/tottus-cl/content/ofertas-tottus?sid=HO_BH_OFE_498',
-        'https://www.tottus.cl/tottus-cl/lista/CATG24752/Liquidos?sid=HO_CS_LIQ_478',
-        'https://www.tottus.cl/tottus-cl/lista/CATG24758/Aseo-y-Limpieza?sid=HO_CS_ASE_471',
-        'https://www.tottus.cl/tottus-cl/lista/CATG24751/Abarrotes?sid=HO_CS_DES_472',
-        'https://www.tottus.cl/tottus-cl/lista/CATG24754/Lacteos?sid=HO_CS_LAC_474',
-      ],
-      maxProducts: 75,
-    });
+    if (offers.length < TARGET_PRODUCTS) {
+      const playwrightOffers = await scrapeStoreWithPlaywrightFallback({
+        logTag: 'TottusScraper',
+        baseUrl: 'https://www.tottus.cl',
+        categoryUrls: [
+          'https://www.tottus.cl/tottus-cl/content/ofertas-tottus?sid=HO_BH_OFE_498',
+          'https://www.tottus.cl/tottus-cl/lista/CATG24752/Liquidos?sid=HO_CS_LIQ_478',
+          'https://www.tottus.cl/tottus-cl/lista/CATG24758/Aseo-y-Limpieza?sid=HO_CS_ASE_471',
+          'https://www.tottus.cl/tottus-cl/lista/CATG24751/Abarrotes?sid=HO_CS_DES_472',
+          'https://www.tottus.cl/tottus-cl/lista/CATG24754/Lacteos?sid=HO_CS_LAC_474',
+        ],
+        maxProducts: 75,
+      });
+
+      offers = mergeUniqueOffers(offers, playwrightOffers);
+    }
+
+    console.log(`[TottusScraper] Combined total: ${offers.length} offers.`);
+    return offers.slice(0, TARGET_PRODUCTS);
   }
 }

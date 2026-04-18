@@ -14,6 +14,8 @@ export function createServerSupabaseClient() {
     return null;
   }
 
+  // Fallback for server-side reads/jobs when anon key is not configured locally.
+  // Admin auth paths still enforce role checks and middleware validation.
   if (!anonKey && serviceRoleKey) {
     return createClient(url, serviceRoleKey, {
       auth: {

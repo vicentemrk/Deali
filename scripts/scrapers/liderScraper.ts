@@ -3,6 +3,22 @@ import { fetchVtexMultiCategory } from './vtexCategoryFetcher';
 import { scrapeStoreWithPlaywrightFallback } from './playwrightStoreFallback';
 import { parseCLP } from '../lib/priceParser';
 
+const TARGET_PRODUCTS = 75;
+
+function mergeUniqueOffers(primary: RawOffer[], secondary: RawOffer[]): RawOffer[] {
+  const merged = [...primary];
+  const seen = new Set(primary.map((offer) => offer.productName.trim().toLowerCase()));
+
+  for (const offer of secondary) {
+    const key = offer.productName.trim().toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(offer);
+  }
+
+  return merged;
+}
+
 const LIDER_PROMO_URLS = [
   'https://super.lider.cl/content/productos-a-mil/96311243?ContentZone3&co_ty=Hubspokes&co_nm=tusfavoritos_W15&co_id=09042026_trafico_vertodo&co_or=1',
   'https://super.lider.cl/content/mainstays/42638900?ContentZone3&co_ty=Hubspokes&co_nm=tusfavoritos_W15&co_id=09042026_camp_mainstays&co_or=4',
@@ -100,17 +116,18 @@ export class LiderScraper implements StoreScraper {
     try {
       const cookieHeader = process.env.LIDER_COOKIE?.trim();
       const useLegacyVtex = process.env.LIDER_USE_VTEX === '1';
+      let offers: RawOffer[] = [];
 
       console.log('[LiderScraper] Attempting HTML fallback method...');
       const htmlOffers = await fetchLiderHtmlOffers(cookieHeader);
       if (htmlOffers.length > 0) {
         console.log(`[LiderScraper] ✓ HTML fallback successful: ${htmlOffers.length} offers`);
-        return htmlOffers;
+        offers = mergeUniqueOffers(offers, htmlOffers);
       }
 
-      if (useLegacyVtex) {
+      if (useLegacyVtex && offers.length < TARGET_PRODUCTS) {
         console.log('[LiderScraper] Attempting legacy VTEX method...');
-        const offers = await fetchVtexMultiCategory({
+        const vtexOffers = await fetchVtexMultiCategory({
           cdnBase:      'https://lider.vteximg.com.br',
           fallbackBases:[
             'https://www.lider.cl',
@@ -125,23 +142,30 @@ export class LiderScraper implements StoreScraper {
           extraHeaders: cookieHeader ? { Cookie: cookieHeader } : undefined,
         });
 
-        if (offers.length > 0) {
-          console.log(`[LiderScraper] ✓ Legacy VTEX successful: ${offers.length} offers`);
-          return offers;
+        if (vtexOffers.length > 0) {
+          console.log(`[LiderScraper] ✓ Legacy VTEX successful: ${vtexOffers.length} offers`);
+          offers = mergeUniqueOffers(offers, vtexOffers);
         }
       }
 
-      console.log('[LiderScraper] Attempting Playwright fallback method...');
-      const playwrightOffers = await scrapeStoreWithPlaywrightFallback({
-        logTag: 'LiderScraper',
-        baseUrl: 'https://www.lider.cl',
-        categoryUrls: LIDER_PROMO_URLS,
-        maxProducts: 75,
-      });
-      
-      if (playwrightOffers.length > 0) {
-        console.log(`[LiderScraper] ✓ Playwright fallback successful: ${playwrightOffers.length} offers`);
-        return playwrightOffers;
+      if (offers.length < TARGET_PRODUCTS) {
+        console.log('[LiderScraper] Attempting Playwright fallback method...');
+        const playwrightOffers = await scrapeStoreWithPlaywrightFallback({
+          logTag: 'LiderScraper',
+          baseUrl: 'https://www.lider.cl',
+          categoryUrls: LIDER_PROMO_URLS,
+          maxProducts: 75,
+        });
+
+        if (playwrightOffers.length > 0) {
+          console.log(`[LiderScraper] ✓ Playwright fallback successful: ${playwrightOffers.length} offers`);
+          offers = mergeUniqueOffers(offers, playwrightOffers);
+        }
+      }
+
+      if (offers.length > 0) {
+        console.log(`[LiderScraper] Combined total: ${offers.length} offers`);
+        return offers.slice(0, TARGET_PRODUCTS);
       }
 
       // All methods exhausted

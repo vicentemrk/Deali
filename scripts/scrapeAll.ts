@@ -19,6 +19,34 @@ dotenv.config({ path: path.join(__dirname, '..', '.env.local') });
 const MIN_SCRAPE_LIMIT = 25;
 const MAX_SCRAPE_LIMIT = 75;
 
+const DEFAULT_ALERT_MIN_OFFERS: Record<string, number> = {
+  jumbo: 25,
+  'santa-isabel': 30,
+  lider: 25,
+  tottus: 15,
+  unimarc: 25,
+  acuenta: 20,
+};
+
+type LowVolumeAlert = {
+  storeSlug: string;
+  offersFound: number;
+  offersSaved: number;
+  threshold: number;
+};
+
+function envKeyForStoreThreshold(storeSlug: string): string {
+  return `SCRAPE_ALERT_MIN_${storeSlug.toUpperCase().replace(/-/g, '_')}`;
+}
+
+function resolveAlertThreshold(storeSlug: string): number {
+  const envKey = envKeyForStoreThreshold(storeSlug);
+  const envRaw = process.env[envKey];
+  const envVal = envRaw ? Number.parseInt(envRaw, 10) : NaN;
+  if (!Number.isNaN(envVal) && envVal >= 0) return envVal;
+  return DEFAULT_ALERT_MIN_OFFERS[storeSlug] ?? 20;
+}
+
 function parseScrapeLimit(): number {
   const configured = Number.parseInt(process.env.SCRAPE_LIMIT || `${MAX_SCRAPE_LIMIT}`, 10);
   if (Number.isNaN(configured)) {
@@ -46,6 +74,21 @@ const CANONICAL_CATEGORIES = [
   { name: 'Bazar y Hogar', slug: 'bazar-hogar' },
   { name: 'Despensa', slug: 'despensa' },
 ];
+
+function logSettledFailures(
+  storeSlug: string,
+  event: string,
+  results: PromiseSettledResult<unknown>[]
+): void {
+  const failures = results.filter((result) => result.status === 'rejected');
+  if (failures.length === 0) return;
+
+  logEvent('warn', event, {
+    storeSlug,
+    failedCount: failures.length,
+    sampleError: String(failures[0].reason),
+  });
+}
 
 function selectOffersForScrape(rawOffers: RawOffer[]): RawOffer[] {
   const filteredOffers = rawOffers.filter(isGoodOffer);
@@ -158,11 +201,15 @@ async function processOffers(
   if (imageUpdates.length > 0) {
     // Supabase doesn't support batch update by different PKs in one call,
     // so we use Promise.allSettled with individual updates (typically < 20)
-    await Promise.allSettled(
-      imageUpdates.map(({ id, image_url }) =>
-        supabase.from('products').update({ image_url }).eq('id', id)
-      )
+    const imageUpdateResults = await Promise.allSettled(
+      imageUpdates.map(async ({ id, image_url }) => {
+        const { error } = await supabase.from('products').update({ image_url }).eq('id', id);
+        if (error) {
+          throw new Error(`image update failed for product ${id}: ${error.message}`);
+        }
+      })
     );
+    logSettledFailures(storeSlug, 'scrape.products.backfill_images_failed', imageUpdateResults);
     logEvent('info', 'scrape.products.backfill_images', { storeSlug, count: imageUpdates.length });
   }
 
@@ -179,11 +226,15 @@ async function processOffers(
     .filter((item): item is { id: string; category_id: string } => item != null);
 
   if (categoryUpdates.length > 0) {
-    await Promise.allSettled(
-      categoryUpdates.map(({ id, category_id }) =>
-        supabase.from('products').update({ category_id }).eq('id', id)
-      )
+    const categoryUpdateResults = await Promise.allSettled(
+      categoryUpdates.map(async ({ id, category_id }) => {
+        const { error } = await supabase.from('products').update({ category_id }).eq('id', id);
+        if (error) {
+          throw new Error(`category update failed for product ${id}: ${error.message}`);
+        }
+      })
     );
+    logSettledFailures(storeSlug, 'scrape.products.normalize_categories_failed', categoryUpdateResults);
     logEvent('info', 'scrape.products.normalize_categories', { storeSlug, count: categoryUpdates.length });
   }
 
@@ -255,14 +306,19 @@ async function processOffers(
   }
 
   // ── Step 5: Price history deduplicada vía RPC ─────────────────────────
-  await Promise.allSettled(
-    allProductIds.map(({ id: productId, offer }) =>
-      supabase.rpc('insert_price_if_changed', {
+  const priceHistoryResults = await Promise.allSettled(
+    allProductIds.map(async ({ id: productId, offer }) => {
+      const { error } = await supabase.rpc('insert_price_if_changed', {
         p_product_id: productId,
         p_price:      offer.offerPrice,
-      })
-    )
+      });
+
+      if (error) {
+        throw new Error(`price history rpc failed for product ${productId}: ${error.message}`);
+      }
+    })
   );
+  logSettledFailures(storeSlug, 'scrape.price_history.rpc_failed', priceHistoryResults);
 
   logEvent('info', 'scrape.process.completed', {
     storeSlug,
@@ -427,6 +483,7 @@ async function main() {
 
   let successCount = 0;
   let failCount    = 0;
+  const lowVolumeAlerts: LowVolumeAlert[] = [];
 
   const apiScrapers = targetScrapers.filter((scraper) =>
     ['jumbo', 'lider', 'santa-isabel'].includes(scraper.storeSlug)
@@ -458,6 +515,18 @@ async function main() {
         console.warn(`[${scraper.constructor.name}] 0 offers detected for ${scraper.storeSlug} — possible selector breakage`);
       }
       offersSaved = await processOffers(storeId, scraper.storeSlug, offers, categorySlugMap);
+
+      const threshold = resolveAlertThreshold(scraper.storeSlug);
+      if (offersFound < threshold) {
+        const alert: LowVolumeAlert = {
+          storeSlug: scraper.storeSlug,
+          offersFound,
+          offersSaved,
+          threshold,
+        };
+        lowVolumeAlerts.push(alert);
+        logEvent('warn', 'scrape.store.low_volume', alert);
+      }
 
       const firstOffer = offers.find(isGoodOffer);
       if (firstOffer) {
@@ -515,6 +584,18 @@ async function main() {
       }
       offersSaved = await processOffers(storeId, scraper.storeSlug, offers, categorySlugMap);
 
+      const threshold = resolveAlertThreshold(scraper.storeSlug);
+      if (offersFound < threshold) {
+        const alert: LowVolumeAlert = {
+          storeSlug: scraper.storeSlug,
+          offersFound,
+          offersSaved,
+          threshold,
+        };
+        lowVolumeAlerts.push(alert);
+        logEvent('warn', 'scrape.store.low_volume', alert);
+      }
+
       const firstOffer = offers.find(isGoodOffer);
       if (firstOffer) {
         await broadcastNewOffer(scraper.storeSlug, firstOffer);
@@ -550,7 +631,15 @@ async function main() {
   logEvent('info', 'scrape.run.completed', {
     successCount,
     failCount,
+    lowVolumeStores: lowVolumeAlerts.length,
   });
+
+  if (lowVolumeAlerts.length > 0) {
+    logEvent('warn', 'scrape.run.low_volume_summary', {
+      total: lowVolumeAlerts.length,
+      stores: lowVolumeAlerts,
+    });
+  }
 
   await Promise.allSettled([
     invalidatePrefix('offers:list:'),
