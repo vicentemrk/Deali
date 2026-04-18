@@ -11,6 +11,30 @@ interface PlaywrightFallbackConfig {
 
 const MAX_SCROLL_CYCLES = 8;
 
+async function clickLoadMoreIfPresent(page: import('playwright').Page): Promise<boolean> {
+  const byText = page
+    .locator('button')
+    .filter({ hasText: /(ver|cargar|mostrar) m[aá]s/i })
+    .first();
+  if ((await byText.count()) > 0 && (await byText.isVisible())) {
+    await byText.click({ timeout: 3_000 }).catch(() => undefined);
+    await page.waitForTimeout(1_200);
+    return true;
+  }
+
+  const selectors = ['[data-testid*="load-more"]', '[class*="loadMore"] button'];
+  for (const selector of selectors) {
+    const button = page.locator(selector).first();
+    if ((await button.count()) === 0 || !(await button.isVisible())) continue;
+
+    await button.click({ timeout: 3_000 }).catch(() => undefined);
+    await page.waitForTimeout(1_200);
+    return true;
+  }
+
+  return false;
+}
+
 export async function scrapeStoreWithPlaywrightFallback(
   config: PlaywrightFallbackConfig
 ): Promise<RawOffer[]> {
@@ -48,9 +72,28 @@ export async function scrapeStoreWithPlaywrightFallback(
           accept?.click();
         }).catch(() => undefined);
 
+        let previousCards = 0;
+        let stagnantCycles = 0;
+
         for (let i = 0; i < MAX_SCROLL_CYCLES; i++) {
+          const clickedLoadMore = await clickLoadMoreIfPresent(page);
           await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
           await page.waitForTimeout(1_500);
+
+          const currentCards = await page.locator(
+            '[role="group"][aria-label="Producto"], [aria-label="Producto"], article.vtex-product-summary-2-x-element, .vtex-product-summary-2-x-container, [data-testid="product-card"], article[class*="product"], li[class*="galleryItem"]'
+          ).count();
+
+          if (currentCards <= previousCards && !clickedLoadMore) {
+            stagnantCycles++;
+          } else {
+            stagnantCycles = 0;
+          }
+
+          previousCards = currentCards;
+          if (stagnantCycles >= 2) {
+            break;
+          }
         }
 
         const categoryHint = categoryUrl.split('/').filter(Boolean).pop() || null;

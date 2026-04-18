@@ -1,7 +1,8 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { cached } from '@/lib/cache';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { apiError } from '@/lib/apiError';
+import { getRequestId, logApiError, logApiStart, logApiSuccess, logApiWarn } from '@/lib/logger';
 
 type StoreRow = {
   id: string;
@@ -25,11 +26,17 @@ type OfferCountRow = {
  * Performance: O(1) SQL aggregation instead of O(n) JavaScript counting
  * Impact: ~50-100x faster for large offer counts
  */
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const requestId = getRequestId(req);
+  logApiStart('api_stores_get', { requestId });
+
   try {
     const supabase = await createServerSupabaseClient();
     if (!supabase) {
-      return apiError('DB_NOT_CONFIGURED', 'Supabase client initialization failed', 503);
+      logApiError('api_stores_get_db_not_configured', 'Supabase client initialization failed', { requestId });
+      return apiError('DB_NOT_CONFIGURED', 'Supabase client initialization failed', 503, {
+        requestId,
+      });
     }
 
     const result = await cached(
@@ -49,7 +56,10 @@ export async function GET() {
           .rpc('get_stores_offer_counts');
 
         if (countsError) {
-          console.warn('[StoresAPI] RPC failed, using fallback query:', countsError.message);
+          logApiWarn('api_stores_rpc_fallback', {
+            requestId,
+            error: countsError.message,
+          });
           
           // Fallback: Direct aggregation query if RPC unavailable
           const { data: countsFallback } = await supabase
@@ -87,9 +97,17 @@ export async function GET() {
       60 * 60 // 1 hour cache
     );
 
-    return NextResponse.json(result);
+    logApiSuccess('api_stores_get', {
+      requestId,
+      count: Array.isArray(result) ? result.length : null,
+    });
+
+    const response = NextResponse.json(result);
+    response.headers.set('X-Request-Id', requestId);
+    return response;
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
-    return apiError('GET_STORES_FAILED', message, 500);
+    logApiError('api_stores_get_failed', error, { requestId });
+    return apiError('GET_STORES_FAILED', message, 500, { requestId });
   }
 }

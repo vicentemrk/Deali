@@ -214,6 +214,20 @@ function parseProduct(
   };
 }
 
+function mergeUniqueOffers(base: RawOffer[], incoming: RawOffer[]): RawOffer[] {
+  const merged = [...base];
+  const seen = new Set(base.map((offer) => offer.productName.trim().toLowerCase()));
+
+  for (const offer of incoming) {
+    const key = offer.productName.trim().toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(offer);
+  }
+
+  return merged;
+}
+
 /**
  * Runs one filter strategy across pages.
  */
@@ -304,12 +318,25 @@ export async function fetchVtexMultiCategory(
     '',
   ];
 
+  let aggregatedOffers: RawOffer[] = [];
+
   for (const fqFilter of fqFilters) {
     const offers = await fetchWithFilter(config, fqFilter, baseCandidates);
+    const before = aggregatedOffers.length;
+    aggregatedOffers = mergeUniqueOffers(aggregatedOffers, offers);
+    const added = aggregatedOffers.length - before;
 
-    if (offers.length >= minProducts) {
-      console.log(`[${config.logTag}] ✅ Strategy "${fqFilter || 'broad'}" succeeded: ${offers.length} offers.`);
-      return offers;
+    if (added > 0) {
+      console.log(
+        `[${config.logTag}] Strategy "${fqFilter || 'broad'}" added ${added} new offers (aggregate: ${aggregatedOffers.length}).`
+      );
+    }
+
+    if (aggregatedOffers.length >= minProducts) {
+      console.log(
+        `[${config.logTag}] ✅ Reached target after "${fqFilter || 'broad'}": ${aggregatedOffers.length} offers.`
+      );
+      return aggregatedOffers;
     }
 
     if (offers.length > 0) {
@@ -317,7 +344,14 @@ export async function fetchVtexMultiCategory(
     }
   }
 
-  console.warn(`[${config.logTag}] ⚠ No strategy reached ${minProducts} products. Trying last resort...`);
+  if (aggregatedOffers.length > 0) {
+    console.warn(
+      `[${config.logTag}] ⚠ No strategy reached ${minProducts}, but aggregate reached ${aggregatedOffers.length}.`
+    );
+    return aggregatedOffers;
+  }
+
+  console.warn(`[${config.logTag}] ⚠ No strategy produced discounted offers. Trying last resort...`);
 
   const lastResort = await fetchWithFilter(
     { ...config, minProducts: 1, maxPages: config.maxPages ?? 6 },

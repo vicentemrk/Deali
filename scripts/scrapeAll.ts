@@ -106,6 +106,34 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+type StoreRunSummary = {
+  storeSlug: string;
+  offersFound: number;
+  offersSaved: number;
+  durationMs: number;
+  activeOffersBefore: number | null;
+  activeOffersAfter: number | null;
+  activeOffersDelta: number | null;
+  status: 'completed' | 'failed';
+  error?: string;
+};
+
+async function getActiveOffersCount(storeId: string): Promise<number> {
+  const today = new Date().toISOString().split('T')[0];
+  const { count, error } = await supabase
+    .from('offers')
+    .select('id, products!inner(store_id)', { count: 'exact', head: true })
+    .eq('products.store_id', storeId)
+    .eq('is_active', true)
+    .gte('end_date', today);
+
+  if (error) {
+    throw new Error(`Failed to count active offers: ${error.message}`);
+  }
+
+  return count ?? 0;
+}
+
 // ---------------------------------------------------------------------------
 // BATCH PROCESSING
 // ~5 queries por tienda total (vs N×5 anterior)
@@ -457,6 +485,7 @@ async function main() {
   let successCount = 0;
   let failCount    = 0;
   const lowVolumeAlerts: LowVolumeAlert[] = [];
+  const storeRunSummaries: StoreRunSummary[] = [];
 
   const apiScrapers = targetScrapers.filter((scraper) =>
     ['jumbo', 'lider', 'santa-isabel'].includes(scraper.storeSlug)
@@ -477,10 +506,12 @@ async function main() {
     let offersFound = 0;
     let offersSaved = 0;
     let errorMsg: string | undefined;
+    let activeOffersBefore: number | null = null;
 
     try {
       logEvent('info', 'scrape.store.start', { storeSlug: scraper.storeSlug });
       await logScrapeRun(scraper.storeSlug, 'started', {});
+      activeOffersBefore = await getActiveOffersCount(storeId);
 
       const offers = await scraper.scrape();
       offersFound = offers.length;
@@ -501,10 +532,23 @@ async function main() {
       }
 
       const duration = Date.now() - startTime;
+      const activeOffersAfter = await getActiveOffersCount(storeId);
+
       await logScrapeRun(scraper.storeSlug, 'completed', {
         offers_found: offersFound,
         offers_saved: offersSaved,
         duration_ms: duration,
+      });
+
+      storeRunSummaries.push({
+        storeSlug: scraper.storeSlug,
+        offersFound,
+        offersSaved,
+        durationMs: duration,
+        activeOffersBefore,
+        activeOffersAfter,
+        activeOffersDelta: activeOffersAfter - (activeOffersBefore ?? activeOffersAfter),
+        status: 'completed',
       });
 
       successCount++;
@@ -523,6 +567,18 @@ async function main() {
         offers_saved: offersSaved,
         error: errorMsg,
         duration_ms: duration,
+      });
+
+      storeRunSummaries.push({
+        storeSlug: scraper.storeSlug,
+        offersFound,
+        offersSaved,
+        durationMs: duration,
+        activeOffersBefore,
+        activeOffersAfter: null,
+        activeOffersDelta: null,
+        status: 'failed',
+        error: errorMsg,
       });
     }
   });
@@ -539,10 +595,12 @@ async function main() {
     let offersFound = 0;
     let offersSaved = 0;
     let errorMsg: string | undefined;
+    let activeOffersBefore: number | null = null;
 
     try {
       logEvent('info', 'scrape.store.start', { storeSlug: scraper.storeSlug });
       await logScrapeRun(scraper.storeSlug, 'started', {});
+      activeOffersBefore = await getActiveOffersCount(storeId);
       
       const offers = await scraper.scrape();
       offersFound = offers.length;
@@ -563,10 +621,23 @@ async function main() {
       }
       
       const duration = Date.now() - startTime;
+      const activeOffersAfter = await getActiveOffersCount(storeId);
+
       await logScrapeRun(scraper.storeSlug, 'completed', {
         offers_found: offersFound,
         offers_saved: offersSaved,
         duration_ms: duration,
+      });
+
+      storeRunSummaries.push({
+        storeSlug: scraper.storeSlug,
+        offersFound,
+        offersSaved,
+        durationMs: duration,
+        activeOffersBefore,
+        activeOffersAfter,
+        activeOffersDelta: activeOffersAfter - (activeOffersBefore ?? activeOffersAfter),
+        status: 'completed',
       });
       
       successCount++;
@@ -586,6 +657,18 @@ async function main() {
         error: errorMsg,
         duration_ms: duration,
       });
+
+      storeRunSummaries.push({
+        storeSlug: scraper.storeSlug,
+        offersFound,
+        offersSaved,
+        durationMs: duration,
+        activeOffersBefore,
+        activeOffersAfter: null,
+        activeOffersDelta: null,
+        status: 'failed',
+        error: errorMsg,
+      });
     }
   });
 
@@ -599,6 +682,12 @@ async function main() {
     logEvent('warn', 'scrape.run.low_volume_summary', {
       total: lowVolumeAlerts.length,
       stores: lowVolumeAlerts,
+    });
+  }
+
+  if (storeRunSummaries.length > 0) {
+    logEvent('info', 'scrape.run.store_summary', {
+      stores: storeRunSummaries,
     });
   }
 

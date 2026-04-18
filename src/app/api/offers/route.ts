@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cached } from '@/lib/cache';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { apiError } from '@/lib/apiError';
+import { getRequestMeta, logApiError, logApiStart, logApiSuccess } from '@/lib/logger';
 
 function buildCacheKey(parts: Record<string, string | number | null | undefined>) {
   return Object.entries(parts)
@@ -21,6 +22,9 @@ function getErrorMessage(error: unknown): string {
  * GET requests to fetch offers using query parameters for filtering and pagination.
  */
 export async function GET(req: NextRequest) {
+  const requestMeta = getRequestMeta(req);
+  logApiStart('api_offers_get', requestMeta);
+
   const { searchParams } = new URL(req.url);
   const page = parseInt(searchParams.get('page') || '1', 10);
   const limit = parseInt(searchParams.get('limit') || '20', 10);
@@ -38,7 +42,10 @@ export async function GET(req: NextRequest) {
   try {
     const supabase = await createServerSupabaseClient();
     if (!supabase) {
-      return apiError('DB_NOT_CONFIGURED', 'Supabase client initialization failed', 503);
+      logApiError('api_offers_get_db_not_configured', 'Supabase client initialization failed', requestMeta);
+      return apiError('DB_NOT_CONFIGURED', 'Supabase client initialization failed', 503, {
+        requestId: requestMeta.requestId,
+      });
     }
 
     const result = await cached(
@@ -92,8 +99,19 @@ export async function GET(req: NextRequest) {
       30 * 60 // 30 mins
     );
 
-    return NextResponse.json(result);
+    logApiSuccess('api_offers_get', {
+      ...requestMeta,
+      total: result.total,
+      page: result.page,
+    });
+
+    const response = NextResponse.json(result);
+    response.headers.set('X-Request-Id', requestMeta.requestId);
+    return response;
   } catch (error: unknown) {
-    return apiError('GET_OFFERS_FAILED', getErrorMessage(error), 500);
+    logApiError('api_offers_get_failed', error, requestMeta);
+    return apiError('GET_OFFERS_FAILED', getErrorMessage(error), 500, {
+      requestId: requestMeta.requestId,
+    });
   }
 }

@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { Redis } from '@upstash/redis';
 import { isAdminUser } from '@/lib/adminAuth';
+import { getRequestId, logApiError, logApiWarn } from '@/lib/logger';
 import {
   RATE_LIMIT_WINDOW_SECONDS,
   getRateLimitPolicy,
@@ -27,7 +28,8 @@ function getClientIp(request: NextRequest): string {
 
 async function checkRateLimit(
   request: NextRequest,
-  route: RateLimitRoute
+  route: RateLimitRoute,
+  requestId: string
 ): Promise<{ limited: boolean; remaining: number; resetSeconds: number; limit: number }> {
   const policy = getRateLimitPolicy(route, request.method);
 
@@ -58,7 +60,12 @@ async function checkRateLimit(
       limit: policy.maxRequests,
     };
   } catch (error) {
-    console.error(`[RateLimitError] ${error}`);
+    logApiError('proxy_rate_limit_error', error, {
+      requestId,
+      path: request.nextUrl.pathname,
+      method: request.method,
+      route,
+    });
     return {
       limited: false,
       remaining: policy.maxRequests,
@@ -68,7 +75,11 @@ async function checkRateLimit(
   }
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
+  const requestId = getRequestId(request);
+  const forwardHeaders = new Headers(request.headers);
+  forwardHeaders.set('x-request-id', requestId);
+
   const isApiAdmin = request.nextUrl.pathname.startsWith('/api/admin');
   const isAdmin = request.nextUrl.pathname.startsWith('/admin');
   const publicRoute = resolveRateLimitRoute(request.nextUrl.pathname);
@@ -77,14 +88,18 @@ export async function middleware(request: NextRequest) {
   // This prevents DoS attacks via large payloads on unauthenticated requests
   if ((isApiAdmin || isAdmin) && (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)) {
     if (isApiAdmin) {
-      return NextResponse.json(
+      const response = NextResponse.json(
         { error: true, code: 'SUPABASE_INIT_FAILED', message: 'Supabase configuration missing' },
         { status: 500 }
       );
+      response.headers.set('X-Request-Id', requestId);
+      return response;
     }
     const url = request.nextUrl.clone();
     url.pathname = '/login';
-    return NextResponse.redirect(url);
+    const response = NextResponse.redirect(url);
+    response.headers.set('X-Request-Id', requestId);
+    return response;
   }
 
   // Auth check for admin routes BEFORE other processing
@@ -111,32 +126,46 @@ export async function middleware(request: NextRequest) {
 
     if (!isAdminUser(user)) {
       if (isApiAdmin) {
-        return NextResponse.json({ error: true, code: 'FORBIDDEN', message: 'Admin role required' }, { status: 403 });
+        const response = NextResponse.json({ error: true, code: 'FORBIDDEN', message: 'Admin role required' }, { status: 403 });
+        response.headers.set('X-Request-Id', requestId);
+        return response;
       }
       const url = request.nextUrl.clone();
       url.pathname = '/login';
-      return NextResponse.redirect(url);
+      const response = NextResponse.redirect(url);
+      response.headers.set('X-Request-Id', requestId);
+      return response;
     }
 
     // Auth passed, continue with request
-    return NextResponse.next({
+    const response = NextResponse.next({
       request: {
-        headers: request.headers,
+        headers: forwardHeaders,
       },
     });
+    response.headers.set('X-Request-Id', requestId);
+    return response;
   }
 
   const baseResponse = NextResponse.next({
     request: {
-      headers: request.headers,
+      headers: forwardHeaders,
     },
   });
+  baseResponse.headers.set('X-Request-Id', requestId);
 
   if (publicRoute) {
-    const rateLimit = await checkRateLimit(request, publicRoute);
+    const rateLimit = await checkRateLimit(request, publicRoute, requestId);
 
     if (rateLimit.limited) {
-      return NextResponse.json(
+      logApiWarn('proxy_rate_limit_exceeded', {
+        requestId,
+        path: request.nextUrl.pathname,
+        method: request.method,
+        route: publicRoute,
+      });
+
+      const response = NextResponse.json(
         {
           error: true,
           code: 'RATE_LIMIT_EXCEEDED',
@@ -152,6 +181,8 @@ export async function middleware(request: NextRequest) {
           },
         }
       );
+      response.headers.set('X-Request-Id', requestId);
+      return response;
     }
 
     baseResponse.headers.set('X-RateLimit-Limit', String(rateLimit.limit));
