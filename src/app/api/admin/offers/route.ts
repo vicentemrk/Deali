@@ -5,6 +5,17 @@ import { apiError } from '@/lib/apiError';
 import { isAdminUser } from '@/lib/adminAuth';
 import { createOfferSchema } from '@/lib/adminValidation';
 
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return String(error);
+}
+
+function isZodError(error: unknown): error is { name: string; message: string } {
+  return Boolean(error) && typeof error === 'object' && 'name' in error && (error as { name?: string }).name === 'ZodError';
+}
+
 /**
  * POST request to create a new offer (Admin only).
  */
@@ -34,10 +45,10 @@ export async function POST(req: NextRequest) {
 
     await invalidatePrefix('offers:');
     return NextResponse.json(data, { status: 201 });
-  } catch (error: any) {
-    if (error?.name === 'ZodError') {
-      return apiError('INVALID_PAYLOAD', error.message || 'Invalid request payload', 400);
+  } catch (error: unknown) {
+    if (isZodError(error)) {
+      return apiError('INVALID_PAYLOAD', getErrorMessage(error) || 'Invalid request payload', 400);
     }
-    return apiError('CREATE_OFFER_FAILED', error.message || String(error), 500);
+    return apiError('CREATE_OFFER_FAILED', getErrorMessage(error), 500);
   }
 }

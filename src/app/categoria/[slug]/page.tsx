@@ -4,6 +4,16 @@ import { Footer } from '@/components/Footer';
 import Link from 'next/link';
 import { SORT_OPTIONS } from '@/lib/catalog';
 
+type CategoryOffer = {
+  offer_id: string;
+  [key: string]: unknown;
+};
+
+type CategoryResponse = {
+  data: CategoryOffer[];
+  total: number;
+};
+
 interface PageProps {
   params: { slug: string };
   searchParams: { page?: string; sort?: string };
@@ -14,7 +24,7 @@ export async function generateMetadata({ params }: PageProps) {
   return {
     title: `Ofertas de ${catName} | Deali`,
     description: `Encuentra las mejores ofertas en la categoría ${catName}.`,
-  }
+  };
 }
 
 export default async function CategoryPage({ params, searchParams }: PageProps) {
@@ -25,17 +35,17 @@ export default async function CategoryPage({ params, searchParams }: PageProps) 
   
   const res = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/offers?category=${params.slug}&page=${page}&limit=${pageSize}&sort=${sort}`, { next: { revalidate: 1800 } });
   
-    let offers = [];
+    let offers: CategoryOffer[] = [];
     let total = 0;
   if (res.ok) {
-     const data = await res.json();
-     offers = data.data;
-      total = data.total || 0;
+    const data = (await res.json()) as CategoryResponse;
+    offers = data.data;
+    total = data.total || 0;
   }
 
-    const totalPages = Math.max(1, Math.ceil(total / pageSize));
-    const hasPrev = pageNumber > 1;
-    const hasNext = pageNumber < totalPages;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const hasPrev = pageNumber > 1;
+  const hasNext = pageNumber < totalPages;
 
   return (
     <div className="min-h-screen bg-bg-page font-sans text-gray-900 flex flex-col">
@@ -70,7 +80,7 @@ export default async function CategoryPage({ params, searchParams }: PageProps) 
         ) : (
           <>
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-              {offers.map((offer: any) => (
+              {offers.map((offer) => (
                 <OfferCard key={offer.offer_id} offer={offer} />
               ))}
             </div>

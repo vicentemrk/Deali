@@ -3,6 +3,21 @@ import { cached } from '@/lib/cache';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { apiError } from '@/lib/apiError';
 
+type StoreRow = {
+  id: string;
+  name: string;
+  slug: string;
+  color_hex: string;
+  website_url: string | null;
+  logo_url?: string | null;
+  active_offers_count?: number;
+};
+
+type OfferCountRow = {
+  store_slug: string;
+  count: number;
+};
+
 /**
  * GET request to fetch all stores along with active offers count.
  * 
@@ -39,32 +54,32 @@ export async function GET() {
           // Fallback: Direct aggregation query if RPC unavailable
           const { data: countsFallback } = await supabase
             .from('activa_offers_view')
-            .select('store_slug', { count: 'exact' });
+            .select('store_slug');
           
-          const countsMap: Record<string, number> = (countsFallback || []).reduce(
-            (acc: Record<string, number>, offer: any) => {
+          const countsMap: Record<string, number> = ((countsFallback || []) as Array<{ store_slug: string }>).reduce(
+            (acc, offer) => {
               acc[offer.store_slug] = (acc[offer.store_slug] || 0) + 1;
               return acc;
             },
             {}
           );
 
-          return stores.map((store: any) => ({
+          return ((stores || []) as StoreRow[]).map((store) => ({
             ...store,
             active_offers_count: countsMap[store.slug] || 0
           }));
         }
 
         // Map RPC results: { store_slug, count } → { slug, active_offers_count }
-        const countsMap: Record<string, number> = (countsData || []).reduce(
-          (acc: Record<string, number>, item: any) => {
+        const countsMap: Record<string, number> = ((countsData || []) as OfferCountRow[]).reduce(
+          (acc, item) => {
             acc[item.store_slug] = item.count || 0;
             return acc;
           },
           {}
         );
 
-        return stores.map((store: any) => ({
+        return ((stores || []) as StoreRow[]).map((store) => ({
           ...store,
           active_offers_count: countsMap[store.slug] || 0
         }));
@@ -73,7 +88,8 @@ export async function GET() {
     );
 
     return NextResponse.json(result);
-  } catch (error: any) {
-    return apiError('GET_STORES_FAILED', error.message || String(error), 500);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    return apiError('GET_STORES_FAILED', message, 500);
   }
 }

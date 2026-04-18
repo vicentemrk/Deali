@@ -4,6 +4,12 @@ import { apiError } from '@/lib/apiError';
 import { isAdminUser } from '@/lib/adminAuth';
 import { spawn } from 'child_process';
 
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return String(error);
+}
 /**
  * POST /api/admin/scraper/trigger
  * 
@@ -88,7 +94,7 @@ export async function POST(req: NextRequest) {
     // If not in query params, try to get from body
     if (!storeSlug) {
       try {
-        const body = await req.json();
+        const body = (await req.json()) as { storeSlug?: string; store?: string };
         storeSlug = body.storeSlug || body.store;
       } catch {
         // No body or invalid JSON, continue
@@ -121,9 +127,9 @@ export async function POST(req: NextRequest) {
       },
       { status: 202 }
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Scraper Trigger Error]', error);
-    return apiError('TRIGGER_SCRAPER_FAILED', error.message || String(error), 500);
+    return apiError('TRIGGER_SCRAPER_FAILED', getErrorMessage(error), 500);
   }
 }
 
@@ -132,6 +138,7 @@ export async function POST(req: NextRequest) {
  */
 export async function GET(req: NextRequest) {
   try {
+    void req;
     // Auth is checked by middleware
     const supabase = createServerSupabaseClient();
     if (!supabase) {
@@ -168,8 +175,8 @@ export async function GET(req: NextRequest) {
       },
       { status: 200 }
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Scraper Status Error]', error);
-    return apiError('GET_STATUS_FAILED', error.message || String(error), 500);
+    return apiError('GET_STATUS_FAILED', getErrorMessage(error), 500);
   }
 }

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import { strict as assert } from 'node:assert';
-import { JumboScraper } from '../jumboScraper';
+import { JumboScraper, parseJumboBffProducts } from '../jumboScraper';
 import { SantaIsabelScraper } from '../santaIsabelScraper';
 import { JUMBO_FIXTURES, JUMBO_FIXTURES_MINIMAL } from '../__fixtures__/jumboFixtures';
 import { SANTA_ISABEL_FIXTURES, SANTA_ISABEL_FIXTURES_MINIMAL } from '../__fixtures__/santaIsabelFixtures';
@@ -11,7 +11,8 @@ let mockScraperData: any[] = [];
 
 // Override module to inject mock data
 const originalFetch = global.fetch;
-global.fetch = async (url: string, options?: any) => {
+global.fetch = async (input: URL | RequestInfo, options?: RequestInit): Promise<Response> => {
+  const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
   if (mockScraperData.length > 0) {
     return new Response(JSON.stringify(mockScraperData), { status: 200 });
   }
@@ -79,6 +80,58 @@ test('JumboScraper: Offer URLs are properly formatted', () => {
     assert.ok(offer.imageUrl.includes('jumbo.vteximg.com.br'), 
       `Expected Jumbo image URL, got: ${offer.imageUrl}`);
   });
+});
+
+test('JumboScraper: parseJumboBffProducts extracts discounted rows and removes duplicates', () => {
+  const parsed = parseJumboBffProducts([
+    {
+      slug: 'aceite-maravilla-chef-1-l',
+      brand: 'Chef',
+      categoryNames: ['Despensa'],
+      items: [
+        {
+          name: 'Aceite de Maravilla Chef 1 L',
+          price: 2490,
+          listPrice: 3750,
+          images: ['https://jumbocl.vteximg.com.br/arquivos/ids/452172-250-250/Aceite.jpg'],
+        },
+      ],
+    },
+    {
+      slug: 'aceite-maravilla-chef-1-l',
+      brand: 'Chef',
+      categoryNames: ['Despensa'],
+      items: [
+        {
+          name: 'Aceite de Maravilla Chef 1 L',
+          price: 2490,
+          listPrice: 3750,
+          images: ['https://jumbocl.vteximg.com.br/arquivos/ids/452172-250-250/Aceite.jpg'],
+        },
+      ],
+    },
+    {
+      slug: 'sin-descuento',
+      brand: 'Chef',
+      categoryNames: ['Despensa'],
+      items: [
+        {
+          name: 'Producto Sin Descuento',
+          price: 2000,
+          listPrice: 2000,
+          images: ['https://jumbocl.vteximg.com.br/arquivos/ids/111-250-250/No.jpg'],
+        },
+      ],
+    },
+  ] as any);
+
+  assert.equal(parsed.length, 1);
+  assert.equal(parsed[0].productName, 'Aceite de Maravilla Chef 1 L');
+  assert.equal(parsed[0].offerPrice, 2490);
+  assert.equal(parsed[0].originalPrice, 3750);
+  assert.equal(parsed[0].categoryHint, 'Despensa');
+  assert.ok(parsed[0].offerUrl.includes('/aceite-maravilla-chef-1-l/p'));
+  assert.ok(parsed[0].imageUrl.includes('-600-600/'));
 });
 
 // ──────────────────────────────────────────────────────────────────────────────

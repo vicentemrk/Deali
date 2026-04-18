@@ -1,7 +1,32 @@
 import React from 'react';
+import Image from 'next/image';
+
+export type OfferCardData = {
+  offer_id?: string;
+  product_name?: string;
+  productName?: string;
+  product_image_url?: string;
+  productImageUrl?: string;
+  image_url?: string;
+  imageUrl?: string;
+  thumbnail_url?: string;
+  thumbnailUrl?: string;
+  category_name?: string;
+  categoryName?: string;
+  original_price?: number | string;
+  originalPrice?: number | string;
+  offer_price?: number | string;
+  offerPrice?: number | string;
+  discount_pct?: number | string;
+  discountPct?: number | string;
+  offer_url?: string;
+  offerUrl?: string;
+  end_date?: string | Date | null;
+  endDate?: string | Date | null;
+};
 
 interface OfferCardProps {
-  offer: Record<string, any>;
+  offer: OfferCardData;
 }
 
 export function OfferCard({ offer }: OfferCardProps) {
@@ -56,11 +81,12 @@ export function OfferCard({ offer }: OfferCardProps) {
       {/* Image Area */}
       <div className="relative z-10 mt-10 mb-3 h-36 w-full overflow-hidden rounded-2xl border border-white/70 bg-white/60 transition-transform duration-500 ease-out group-hover:scale-[1.03] sm:mt-12 sm:h-40">
         {productImageUrl ? (
-          <img
+          <Image
             src={productImageUrl}
             alt={productName}
+            fill
+            sizes="(max-width: 640px) 100vw, 280px"
             className="absolute inset-0 h-full w-full object-contain drop-shadow-sm mix-blend-multiply p-2"
-            loading="lazy"
             referrerPolicy="no-referrer"
           />
         ) : (

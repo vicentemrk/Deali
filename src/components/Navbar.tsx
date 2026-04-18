@@ -11,6 +11,10 @@ type DbCategory = {
   parent_id: string | null;
 };
 
+function isSupportedSlug(slug: string, supportedSlugs: Set<string>): boolean {
+  return supportedSlugs.has(slug);
+}
+
 function buildHeaderCategories(categories: DbCategory[]) {
   const byParent = new Map<string | null, DbCategory[]>();
 
@@ -81,17 +85,17 @@ export async function Navbar() {
       const built = buildHeaderCategories(parsed);
       const supportedSlugs = new Set(CATEGORY_OPTIONS.map((cat) => cat.slug));
       const filteredBuilt = built
-        .filter((category) => supportedSlugs.has(category.slug as any))
+        .filter((category) => isSupportedSlug(category.slug, supportedSlugs))
         .map((category) => ({
           ...category,
-          children: (category.children || []).filter((child) => supportedSlugs.has(child.slug as any)),
+          children: (category.children || []).filter((child) => isSupportedSlug(child.slug, supportedSlugs)),
         }))
-        .filter((category) => category.children.length > 0 || supportedSlugs.has(category.slug as any));
+        .filter((category) => category.children.length > 0 || isSupportedSlug(category.slug, supportedSlugs));
 
       dynamicCategories = (filteredBuilt.length > 0
         ? filteredBuilt
         : parsed
-            .filter((cat) => supportedSlugs.has(cat.slug as any))
+            .filter((cat) => isSupportedSlug(cat.slug, supportedSlugs))
             .map((cat) => ({ id: cat.slug, name: cat.name, slug: cat.slug }))) as typeof dynamicCategories;
     }
   }

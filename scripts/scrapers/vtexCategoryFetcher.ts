@@ -1,4 +1,13 @@
 import { RawOffer } from './types';
+import {
+  getHostFromUrl,
+  getRetryAttempts,
+  recordHostFailure,
+  recordHostSuccess,
+  shouldRetryHttpStatus,
+  shouldShortCircuitHost,
+  sleepWithBackoff,
+} from '../lib/httpResilience';
 
 // ---------------------------------------------------------------------------
 // VTEX Paginated Fetcher — shared logic for Jumbo, Santa Isabel, Lider.
@@ -78,38 +87,83 @@ async function fetchPage(
   timeoutMs: number = 18_000
 ): Promise<any[]> {
   const fqParam = fqFilter ? `&${fqFilter}` : '';
+  const retryAttempts = getRetryAttempts();
 
   for (const base of bases) {
     const url = `${base}/api/catalog_system/pub/products/search?O=OrderByBestDiscountDESC${fqParam}&_from=${from}&_to=${to}`;
+    const host = getHostFromUrl(url);
+    const circuit = shouldShortCircuitHost(host);
 
-    try {
-      const response = await fetch(url, {
-        headers: {
-          Accept: 'application/json',
-          'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
-            '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-          'Accept-Language': 'es-CL,es;q=0.9',
-          Referer: referer,
-          ...extraHeaders,
-        },
-        signal: AbortSignal.timeout(timeoutMs),
-      });
+    if (circuit.blocked) {
+      console.warn(
+        `[${logTag}] Circuit open for ${host}, skipping ${base} for ${Math.ceil(
+          circuit.retryInMs / 1000
+        )}s.`
+      );
+      continue;
+    }
 
-      if (!response.ok) {
-        console.warn(`[${logTag}] HTTP ${response.status} @ ${base} (filter: "${fqFilter || 'none'}")`);
-        continue;
+    for (let attempt = 1; attempt <= retryAttempts; attempt++) {
+      try {
+        const response = await fetch(url, {
+          headers: {
+            Accept: 'application/json',
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
+              '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            'Accept-Language': 'es-CL,es;q=0.9',
+            Referer: referer,
+            ...extraHeaders,
+          },
+          signal: AbortSignal.timeout(timeoutMs),
+        });
+
+        if (!response.ok) {
+          const retryable = shouldRetryHttpStatus(response.status);
+          const isLastAttempt = attempt >= retryAttempts;
+
+          if (!retryable || isLastAttempt) {
+            const failure = recordHostFailure(host);
+            if (failure.tripped) {
+              console.warn(`[${logTag}] Circuit tripped for ${host} after repeated failures.`);
+            }
+            console.warn(`[${logTag}] HTTP ${response.status} @ ${base} (filter: "${fqFilter || 'none'}")`);
+            break;
+          }
+
+          console.warn(
+            `[${logTag}] HTTP ${response.status} @ ${base}, retry ${attempt}/${retryAttempts}...`
+          );
+          await sleepWithBackoff(attempt);
+          continue;
+        }
+
+        const data = await response.json();
+        if (!Array.isArray(data)) {
+          console.warn(`[${logTag}] Non-array response from ${base}: ${typeof data}`);
+          const failure = recordHostFailure(host);
+          if (failure.tripped) {
+            console.warn(`[${logTag}] Circuit tripped for ${host} after invalid payloads.`);
+          }
+          break;
+        }
+
+        recordHostSuccess(host);
+        return data;
+      } catch (error: any) {
+        const isLastAttempt = attempt >= retryAttempts;
+        if (isLastAttempt) {
+          const failure = recordHostFailure(host);
+          if (failure.tripped) {
+            console.warn(`[${logTag}] Circuit tripped for ${host} after request errors.`);
+          }
+          console.warn(`[${logTag}] Fetch error @ ${base}: ${error.message}`);
+          break;
+        }
+
+        console.warn(`[${logTag}] Fetch error @ ${base}, retry ${attempt}/${retryAttempts}: ${error.message}`);
+        await sleepWithBackoff(attempt);
       }
-
-      const data = await response.json();
-      if (!Array.isArray(data)) {
-        console.warn(`[${logTag}] Non-array response from ${base}: ${typeof data}`);
-        continue;
-      }
-
-      return data;
-    } catch (error: any) {
-      console.warn(`[${logTag}] Fetch error @ ${base}: ${error.message}`);
     }
   }
 

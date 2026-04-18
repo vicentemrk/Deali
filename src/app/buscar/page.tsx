@@ -3,6 +3,16 @@ import { OfferCard } from '@/components/OfferCard';
 import { Footer } from '@/components/Footer';
 import Link from 'next/link';
 
+type SearchOffer = {
+  offer_id: string;
+  [key: string]: unknown;
+};
+
+type SearchResponse = {
+  data: SearchOffer[];
+  total: number;
+};
+
 interface PageProps {
   searchParams: { q?: string; page?: string };
 }
@@ -12,7 +22,7 @@ export async function generateMetadata({ searchParams }: PageProps) {
   return {
     title: `Resultados para "${query}" | Deali`,
     description: `Ofertas encontradas para ${query} en supermercados chilenos.`,
-  }
+  };
 }
 
 export default async function BuscarPage({ searchParams }: PageProps) {
@@ -25,19 +35,17 @@ export default async function BuscarPage({ searchParams }: PageProps) {
   // We'll reuse the offers endpoint but pass 'q' as an argument.
   const res = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/offers?q=${encodeURIComponent(query)}&page=${page}&limit=${pageSize}`, { next: { revalidate: 300 } });
   
-    let offers = [];
+    let offers: SearchOffer[] = [];
     let total = 0;
   if (res.ok) {
-     const data = await res.json();
-     offers = data.data;
+      const data = (await res.json()) as SearchResponse;
+      offers = data.data;
       total = data.total || 0;
   }
 
     const totalPages = Math.max(1, Math.ceil(total / pageSize));
     const hasPrev = pageNumber > 1;
     const hasNext = pageNumber < totalPages;
-
-
 
 
   return (
@@ -49,7 +57,7 @@ export default async function BuscarPage({ searchParams }: PageProps) {
           </Link>
         </div>
         <h1 className="text-3xl font-bold mb-2 text-gray-800">Resultados de búsqueda</h1>
-        <p className="text-gray-500 mb-8">Buscando: <span className="font-semibold text-purple">"{query}"</span></p>
+        <p className="text-gray-500 mb-8">Buscando: <span className="font-semibold text-purple">&quot;{query}&quot;</span></p>
         
         {offers.length === 0 ? (
           <div className="bg-white p-8 rounded-xl border border-gray-100 text-center shadow-sm">
@@ -60,7 +68,7 @@ export default async function BuscarPage({ searchParams }: PageProps) {
         ) : (
           <>
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-              {offers.map((offer: any) => (
+              {offers.map((offer) => (
                 <OfferCard key={offer.offer_id} offer={offer} />
               ))}
             </div>

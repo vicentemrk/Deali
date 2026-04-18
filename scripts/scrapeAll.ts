@@ -9,6 +9,7 @@ import { StoreScraper, RawOffer } from './scrapers/types';
 import { mapCategory } from './lib/categoryMapper';
 import { logEvent } from './lib/logger';
 import { calculateDiscountPct, isGoodOffer } from './lib/offerQuality';
+import { LowVolumeAlert, buildLowVolumeAlert } from './lib/scrapeAlerts';
 import { invalidatePrefix } from '../src/lib/cache';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
@@ -18,34 +19,6 @@ dotenv.config({ path: path.join(__dirname, '..', '.env.local') });
 
 const MIN_SCRAPE_LIMIT = 25;
 const MAX_SCRAPE_LIMIT = 75;
-
-const DEFAULT_ALERT_MIN_OFFERS: Record<string, number> = {
-  jumbo: 25,
-  'santa-isabel': 30,
-  lider: 25,
-  tottus: 15,
-  unimarc: 25,
-  acuenta: 20,
-};
-
-type LowVolumeAlert = {
-  storeSlug: string;
-  offersFound: number;
-  offersSaved: number;
-  threshold: number;
-};
-
-function envKeyForStoreThreshold(storeSlug: string): string {
-  return `SCRAPE_ALERT_MIN_${storeSlug.toUpperCase().replace(/-/g, '_')}`;
-}
-
-function resolveAlertThreshold(storeSlug: string): number {
-  const envKey = envKeyForStoreThreshold(storeSlug);
-  const envRaw = process.env[envKey];
-  const envVal = envRaw ? Number.parseInt(envRaw, 10) : NaN;
-  if (!Number.isNaN(envVal) && envVal >= 0) return envVal;
-  return DEFAULT_ALERT_MIN_OFFERS[storeSlug] ?? 20;
-}
 
 function parseScrapeLimit(): number {
   const configured = Number.parseInt(process.env.SCRAPE_LIMIT || `${MAX_SCRAPE_LIMIT}`, 10);
@@ -516,14 +489,8 @@ async function main() {
       }
       offersSaved = await processOffers(storeId, scraper.storeSlug, offers, categorySlugMap);
 
-      const threshold = resolveAlertThreshold(scraper.storeSlug);
-      if (offersFound < threshold) {
-        const alert: LowVolumeAlert = {
-          storeSlug: scraper.storeSlug,
-          offersFound,
-          offersSaved,
-          threshold,
-        };
+      const alert = buildLowVolumeAlert(scraper.storeSlug, offersFound, offersSaved);
+      if (alert) {
         lowVolumeAlerts.push(alert);
         logEvent('warn', 'scrape.store.low_volume', alert);
       }
@@ -584,14 +551,8 @@ async function main() {
       }
       offersSaved = await processOffers(storeId, scraper.storeSlug, offers, categorySlugMap);
 
-      const threshold = resolveAlertThreshold(scraper.storeSlug);
-      if (offersFound < threshold) {
-        const alert: LowVolumeAlert = {
-          storeSlug: scraper.storeSlug,
-          offersFound,
-          offersSaved,
-          threshold,
-        };
+      const alert = buildLowVolumeAlert(scraper.storeSlug, offersFound, offersSaved);
+      if (alert) {
         lowVolumeAlerts.push(alert);
         logEvent('warn', 'scrape.store.low_volume', alert);
       }

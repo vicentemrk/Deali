@@ -10,6 +10,13 @@ function buildCacheKey(parts: Record<string, string | number | null | undefined>
     .join('&');
 }
 
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return String(error);
+}
+
 /**
  * GET requests to fetch offers using query parameters for filtering and pagination.
  */
@@ -86,7 +93,7 @@ export async function GET(req: NextRequest) {
     );
 
     return NextResponse.json(result);
-  } catch (error: any) {
-    return apiError('GET_OFFERS_FAILED', error.message || String(error), 500);
+  } catch (error: unknown) {
+    return apiError('GET_OFFERS_FAILED', getErrorMessage(error), 500);
   }
 }

@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
+import { buildLowVolumeAlert } from './lib/scrapeAlerts';
 
 dotenv.config({ path: path.join(__dirname, '..', '.env.local') });
 
@@ -18,27 +19,6 @@ type Metrics = {
     startedAt: string;
   }>;
 };
-
-const DEFAULT_ALERT_MIN_OFFERS: Record<string, number> = {
-  jumbo: 25,
-  'santa-isabel': 30,
-  lider: 25,
-  tottus: 15,
-  unimarc: 25,
-  acuenta: 20,
-};
-
-function envKeyForStoreThreshold(storeSlug: string): string {
-  return `SCRAPE_ALERT_MIN_${storeSlug.toUpperCase().replace(/-/g, '_')}`;
-}
-
-function resolveAlertThreshold(storeSlug: string): number {
-  const envKey = envKeyForStoreThreshold(storeSlug);
-  const envRaw = process.env[envKey];
-  const envVal = envRaw ? Number.parseInt(envRaw, 10) : NaN;
-  if (!Number.isNaN(envVal) && envVal >= 0) return envVal;
-  return DEFAULT_ALERT_MIN_OFFERS[storeSlug] ?? 20;
-}
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -117,21 +97,17 @@ async function fetchMetrics(): Promise<Metrics> {
 
   const lowVolumeStores = Array.from(latestPerStore.values())
     .map((row) => {
-      const threshold = resolveAlertThreshold(row.store_slug);
       const offersFound = Number(row.offers_found ?? 0);
       const offersSaved = Number(row.offers_saved ?? 0);
+      const alert = buildLowVolumeAlert(row.store_slug, offersFound, offersSaved);
+      if (!alert) return null;
 
       return {
-        storeSlug: row.store_slug,
-        offersFound,
-        offersSaved,
-        threshold,
+        ...alert,
         startedAt: row.started_at,
-        isLow: offersFound < threshold,
       };
     })
-    .filter((row) => row.isLow)
-    .map(({ isLow: _isLow, ...row }) => row);
+    .filter((row): row is NonNullable<typeof row> => row != null);
 
   return {
     timestamp: new Date().toISOString(),

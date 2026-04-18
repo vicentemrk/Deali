@@ -3,6 +3,16 @@ import { cached } from '@/lib/cache';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { apiError } from '@/lib/apiError';
 
+type OfferDetailRow = {
+  product_id: string;
+  offer_id: string;
+  [key: string]: unknown;
+};
+
+type PriceHistoryRow = {
+  [key: string]: unknown;
+};
+
 /**
  * GET request to fetch a single offer by ID, including price history.
  */
@@ -40,16 +50,18 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 
         if (historyError) throw historyError;
 
-        return { ...offer, price_history: history };
+        return { ...(offer as OfferDetailRow), price_history: history as PriceHistoryRow[] };
       },
       60 * 60 // 60 mins
     );
 
     return NextResponse.json(result);
-  } catch (error: any) {
-    if (error.code === 'PGRST116') {
-      return apiError('NOT_FOUND', error.message, 404);
+  } catch (error: unknown) {
+    if (error && typeof error === 'object' && 'code' in error && (error as { code?: string }).code === 'PGRST116') {
+      const message = error instanceof Error ? error.message : 'Offer not found';
+      return apiError('NOT_FOUND', message, 404);
     }
-    return apiError('GET_OFFER_DETAIL_FAILED', error.message || String(error), 500);
+    const message = error instanceof Error ? error.message : String(error);
+    return apiError('GET_OFFER_DETAIL_FAILED', message, 500);
   }
 }

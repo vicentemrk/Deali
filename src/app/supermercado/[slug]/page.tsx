@@ -2,6 +2,7 @@ import React from 'react';
 import { OfferCard } from '@/components/OfferCard';
 import { Footer } from '@/components/Footer';
 import { CATEGORY_OPTIONS, SORT_OPTIONS } from '@/lib/catalog';
+import Link from 'next/link';
 
 export const revalidate = 1800; // ISR: regenera la página cada 30 min desde CDN
 
@@ -19,7 +20,15 @@ export async function generateMetadata({ params }: PageProps) {
   }
 }
 
-import Link from 'next/link';
+type StoreOffer = {
+  offer_id: string;
+  [key: string]: unknown;
+};
+
+type StoreResponse = {
+  data: StoreOffer[];
+  total: number;
+};
 
 export default async function SupermercadoPage({ params, searchParams }: PageProps) {
   const page = searchParams.page || '1';
@@ -33,27 +42,27 @@ export default async function SupermercadoPage({ params, searchParams }: PagePro
   
   const res = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/stores/${params.slug}/offers?${query.toString()}`, { next: { revalidate: 1800 } });
   
-    let offers: any[] = [];
+    let offers: StoreOffer[] = [];
     let total = 0;
   if (res.ok) {
-     const data = await res.json();
-     offers = data.data;
-      total = data.total || 0;
+    const data = (await res.json()) as StoreResponse;
+    offers = data.data;
+    total = data.total || 0;
   }
 
-    const totalPages = Math.max(1, Math.ceil(total / pageSize));
-    const hasPrev = pageNumber > 1;
-    const hasNext = pageNumber < totalPages;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const hasPrev = pageNumber > 1;
+  const hasNext = pageNumber < totalPages;
 
-    const prevParams = new URLSearchParams();
-    prevParams.set('page', String(pageNumber - 1));
-    prevParams.set('sort', sort);
-    if (category) prevParams.set('category', category);
+  const prevParams = new URLSearchParams();
+  prevParams.set('page', String(pageNumber - 1));
+  prevParams.set('sort', sort);
+  if (category) prevParams.set('category', category);
 
-    const nextParams = new URLSearchParams();
-    nextParams.set('page', String(pageNumber + 1));
-    nextParams.set('sort', sort);
-    if (category) nextParams.set('category', category);
+  const nextParams = new URLSearchParams();
+  nextParams.set('page', String(pageNumber + 1));
+  nextParams.set('sort', sort);
+  if (category) nextParams.set('category', category);
 
   return (
     <div className="min-h-screen bg-bg-page font-sans text-gray-900 flex flex-col">
@@ -93,7 +102,7 @@ export default async function SupermercadoPage({ params, searchParams }: PagePro
         ) : (
           <>
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-              {offers.map((offer: any) => (
+              {offers.map((offer) => (
                 <OfferCard key={offer.offer_id} offer={offer} />
               ))}
             </div>

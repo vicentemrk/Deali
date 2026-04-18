@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import { createServerClient } from '@supabase/ssr';
 import { Redis } from '@upstash/redis';
 import { isAdminUser } from '@/lib/adminAuth';
 import {
@@ -97,10 +97,10 @@ export async function middleware(request: NextRequest) {
           get(name: string) {
             return request.cookies.get(name)?.value;
           },
-          set(name: string, value: string, options: CookieOptions) {
+          set() {
             // Noop for middleware
           },
-          remove(name: string, options: CookieOptions) {
+          remove() {
             // Noop for middleware
           },
         },

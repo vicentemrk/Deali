@@ -3,6 +3,13 @@ import { cached } from '@/lib/cache';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { apiError } from '@/lib/apiError';
 
+type OfferRow = {
+  offer_id: string;
+  store_slug: string;
+  category_slug: string | null;
+  [key: string]: unknown;
+};
+
 /**
  * GET offers filtered by store slug, with pagination.
  */
@@ -59,13 +66,14 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
         const { data, error, count } = await query;
         if (error) throw error;
 
-        return { data, total: count || 0, page };
+        return { data: data as OfferRow[], total: count || 0, page };
       },
       30 * 60
     );
 
     return NextResponse.json(result);
-  } catch (error: any) {
-    return apiError('GET_STORE_OFFERS_FAILED', error.message || String(error), 500);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    return apiError('GET_STORE_OFFERS_FAILED', message, 500);
   }
 }

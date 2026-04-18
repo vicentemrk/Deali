@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createBrowserClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
 
@@ -28,6 +28,18 @@ type FlatCategory = {
   parent_id: string | null;
   level: number;
 };
+
+type ApiResponseMessage = {
+  message?: string;
+  log?: string;
+};
+
+function getErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+  return fallback;
+}
 
 function flattenCategories(nodes: CategoryNode[], level = 0): FlatCategory[] {
   return nodes.flatMap((node) => [
@@ -61,38 +73,38 @@ export default function AdminPage() {
 
   const flatCategories = useMemo(() => flattenCategories(categories), [categories]);
 
-  const showMessage = (message: string) => {
+  const showMessage = useCallback((message: string) => {
     setTabMessage(message);
     setTimeout(() => setTabMessage(null), 4000);
-  };
+  }, []);
 
-  const loadOffers = async () => {
+  const loadOffers = useCallback(async () => {
     setOffersLoading(true);
     try {
       const res = await fetch('/api/offers?limit=100&page=1&sort=discount_desc', { cache: 'no-store' });
-      const data = await res.json();
+      const data = (await res.json()) as { data?: AdminOffer[] } & ApiResponseMessage;
       if (!res.ok) throw new Error(data.message || 'No se pudieron cargar ofertas');
       setOffers(data.data || []);
-    } catch (error: any) {
-      showMessage(error.message || 'No se pudieron cargar ofertas');
+    } catch (error: unknown) {
+      showMessage(getErrorMessage(error, 'No se pudieron cargar ofertas'));
     } finally {
       setOffersLoading(false);
     }
-  };
+  }, [showMessage]);
 
-  const loadCategories = async () => {
+  const loadCategories = useCallback(async () => {
     setCategoriesLoading(true);
     try {
       const res = await fetch('/api/categories', { cache: 'no-store' });
-      const data = await res.json();
+      const data = (await res.json()) as CategoryNode[] & ApiResponseMessage;
       if (!res.ok) throw new Error(data.message || 'No se pudieron cargar categorias');
       setCategories(data || []);
-    } catch (error: any) {
-      showMessage(error.message || 'No se pudieron cargar categorias');
+    } catch (error: unknown) {
+      showMessage(getErrorMessage(error, 'No se pudieron cargar categorias'));
     } finally {
       setCategoriesLoading(false);
     }
-  };
+  }, [showMessage]);
 
   useEffect(() => {
     if (activeTab === 'ofertas') {
@@ -101,18 +113,18 @@ export default function AdminPage() {
     if (activeTab === 'categorias') {
       loadCategories();
     }
-  }, [activeTab]);
+  }, [activeTab, loadCategories, loadOffers]);
 
   const deleteOffer = async (offerId: string) => {
     if (!confirm('Eliminar esta oferta?')) return;
     try {
       const res = await fetch(`/api/admin/offers/${offerId}`, { method: 'DELETE' });
-      const data = await res.json();
+      const data = (await res.json()) as ApiResponseMessage;
       if (!res.ok) throw new Error(data.message || 'No se pudo eliminar la oferta');
       setOffers((current) => current.filter((offer) => offer.offer_id !== offerId));
       showMessage('Oferta eliminada');
-    } catch (error: any) {
-      showMessage(error.message || 'No se pudo eliminar la oferta');
+    } catch (error: unknown) {
+      showMessage(getErrorMessage(error, 'No se pudo eliminar la oferta'));
     }
   };
 
@@ -132,7 +144,7 @@ export default function AdminPage() {
           parent_id: newCategoryParentId || null,
         }),
       });
-      const data = await res.json();
+      const data = (await res.json()) as ApiResponseMessage;
       if (!res.ok) throw new Error(data.message || 'No se pudo crear la categoria');
 
       setNewCategoryName('');
@@ -140,8 +152,8 @@ export default function AdminPage() {
       setNewCategoryParentId('');
       showMessage('Categoria creada');
       await loadCategories();
-    } catch (error: any) {
-      showMessage(error.message || 'No se pudo crear la categoria');
+    } catch (error: unknown) {
+      showMessage(getErrorMessage(error, 'No se pudo crear la categoria'));
     }
   };
 
@@ -167,7 +179,7 @@ export default function AdminPage() {
           slug: editingCategorySlug.trim(),
         }),
       });
-      const data = await res.json();
+      const data = (await res.json()) as ApiResponseMessage;
       if (!res.ok) throw new Error(data.message || 'No se pudo actualizar la categoria');
 
       setEditingCategoryId(null);
@@ -175,8 +187,8 @@ export default function AdminPage() {
       setEditingCategorySlug('');
       showMessage('Categoria actualizada');
       await loadCategories();
-    } catch (error: any) {
-      showMessage(error.message || 'No se pudo actualizar la categoria');
+    } catch (error: unknown) {
+      showMessage(getErrorMessage(error, 'No se pudo actualizar la categoria'));
     }
   };
 
@@ -184,12 +196,12 @@ export default function AdminPage() {
     if (!confirm('Eliminar esta categoria?')) return;
     try {
       const res = await fetch(`/api/admin/categories/${categoryId}`, { method: 'DELETE' });
-      const data = await res.json();
+      const data = (await res.json()) as ApiResponseMessage;
       if (!res.ok) throw new Error(data.message || 'No se pudo eliminar la categoria');
       showMessage('Categoria eliminada');
       await loadCategories();
-    } catch (error: any) {
-      showMessage(error.message || 'No se pudo eliminar la categoria');
+    } catch (error: unknown) {
+      showMessage(getErrorMessage(error, 'No se pudo eliminar la categoria'));
     }
   };
 
@@ -209,14 +221,14 @@ export default function AdminPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ storeSlug })
       });
-      const data = await res.json();
+      const data = (await res.json()) as ApiResponseMessage;
       if (!res.ok) throw new Error(data.message);
 
       setRunState(prev => ({ ...prev, [storeSlug]: 'success' }));
       setLogs(prev => ({ ...prev, [storeSlug]: data.log || data.message }));
-    } catch (error: any) {
+    } catch (error: unknown) {
       setRunState(prev => ({ ...prev, [storeSlug]: 'error' }));
-      setLogs(prev => ({ ...prev, [storeSlug]: error.message }));
+      setLogs(prev => ({ ...prev, [storeSlug]: getErrorMessage(error, 'Error desconocido') }));
     }
   };
 

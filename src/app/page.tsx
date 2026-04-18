@@ -6,16 +6,40 @@ import { Footer } from '@/components/Footer';
 import Link from 'next/link';
 import { ALCOHOL_CATEGORY_SLUG, PRIMARY_CATEGORIES } from '@/lib/catalog';
 
-const STORE_COLORS: Record<string, string> = {
-  jumbo: '#00AA44',
-  lider: '#003D82',
-  unimarc: '#DC2626',
-  acuenta: '#FF8C00',
-  tottus: '#00843D',
-  'santa-isabel': '#E63946',
+type StoreSummary = {
+  id: string;
+  name: string;
+  slug: string;
+  color_hex: string;
+  website_url: string;
+  active_offers_count: number;
 };
 
-const DEMO_STORES = [
+type OfferSummary = {
+  offer_id: string;
+  store_slug: string;
+  category_slug: string | null;
+};
+
+type PromotionSummary = {
+  id: string;
+  title: string;
+  description?: string;
+  image_url?: string;
+  store: {
+    name: string;
+    color_hex: string;
+    website_url: string;
+  };
+};
+
+type OffersResponse = {
+  data: OfferSummary[];
+  total: number;
+  page: number;
+};
+
+const DEMO_STORES: StoreSummary[] = [
   { id: '1', name: 'Jumbo', slug: 'jumbo', color_hex: '#00AA44', website_url: 'https://www.jumbo.cl', active_offers_count: 0 },
   { id: '2', name: 'Líder', slug: 'lider', color_hex: '#003D82', website_url: 'https://www.lider.cl', active_offers_count: 0 },
   { id: '3', name: 'Unimarc', slug: 'unimarc', color_hex: '#DC2626', website_url: 'https://www.unimarc.cl', active_offers_count: 0 },
@@ -26,11 +50,11 @@ const DEMO_STORES = [
 
 const PRIMARY_STORE_ORDER = ['jumbo', 'lider', 'unimarc', 'tottus', 'santa-isabel', 'acuenta'];
 
-async function safeFetch(url: string) {
+async function safeFetch<T>(url: string): Promise<T | null> {
   try {
     const res = await fetch(url, { cache: 'no-store' });
     if (!res.ok) return null;
-    return res.json();
+    return (await res.json()) as T;
   } catch {
     return null;
   }
@@ -40,23 +64,23 @@ export default async function HomePage() {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
   
   const [offersData, stores, promotions] = await Promise.all([
-    safeFetch(`${baseUrl}/api/offers?limit=1000&excludeCategory=${ALCOHOL_CATEGORY_SLUG}`),
-    safeFetch(`${baseUrl}/api/stores`),
-    safeFetch(`${baseUrl}/api/promotions`),
+    safeFetch<OffersResponse>(`${baseUrl}/api/offers?limit=1000&excludeCategory=${ALCOHOL_CATEGORY_SLUG}`),
+    safeFetch<StoreSummary[]>(`${baseUrl}/api/stores`),
+    safeFetch<PromotionSummary[]>(`${baseUrl}/api/promotions`),
   ]);
 
   const activeStores = stores || DEMO_STORES;
   const activeOffers = offersData?.data || [];
   const activePromotions = promotions || [];
-  const orderedStores = activeStores.map((store: any) => ({
+  const orderedStores = activeStores.map((store) => ({
     ...store,
     offers: activeOffers
-      .filter((offer: any) => offer.store_slug === store.slug && offer.category_slug !== ALCOHOL_CATEGORY_SLUG)
+      .filter((offer: OfferSummary) => offer.store_slug === store.slug && offer.category_slug !== ALCOHOL_CATEGORY_SLUG)
       .slice(0, 5),
   }));
   const sortedStores = orderedStores
     .slice()
-    .sort((left: any, right: any) => {
+    .sort((left, right) => {
       const leftIndex = PRIMARY_STORE_ORDER.indexOf(left.slug);
       const rightIndex = PRIMARY_STORE_ORDER.indexOf(right.slug);
 
@@ -86,7 +110,7 @@ export default async function HomePage() {
           <div className="mt-12">
             <h2 className="text-xl font-bold text-gray-800 mb-6 text-left">Supermercados destacados</h2>
             <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-3">
-              {activeStores.map((store: any) => (
+              {activeStores.map((store) => (
                 <Link
                   key={store.slug}
                   href={`/supermercado/${store.slug}`}
@@ -121,7 +145,7 @@ export default async function HomePage() {
         {/* Promotions */}
         {activePromotions.length > 0 && (
           <div className="mb-16">
-            {activePromotions.slice(0, 1).map((promo: any) => (
+            {activePromotions.slice(0, 1).map((promo) => (
               <PromotionBanner key={promo.id} promotion={promo} />
             ))}
           </div>
@@ -129,7 +153,7 @@ export default async function HomePage() {
 
         {/* Store Sections */}
         {sortedStores.length > 0 ? (
-          sortedStores.map((store: any) => (
+          sortedStores.map((store) => (
             <StoreSection key={store.id} store={store} offers={store.offers} />
           ))
         ) : (

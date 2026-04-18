@@ -2,6 +2,18 @@ import React from 'react';
 import { PromotionBanner } from '@/components/PromotionBanner';
 import { Footer } from '@/components/Footer';
 
+type Promotion = {
+  id: string;
+  title: string;
+  description?: string;
+  image_url?: string;
+  store: {
+    name: string;
+    color_hex: string;
+    website_url: string;
+  };
+};
+
 export const metadata = {
   title: 'Promociones Bancarias y Ofertas | Deali',
   description: 'Descubre todas las promociones bancarias y ofertas exclusivas de los supermercados en Chile.',
@@ -10,9 +22,9 @@ export const metadata = {
 export default async function PromocionesPage() {
   const res = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/promotions`, { next: { revalidate: 3600 } });
   
-  let promotions = [];
+  let promotions: Promotion[] = [];
   if (res.ok) {
-     promotions = await res.json();
+    promotions = (await res.json()) as Promotion[];
   }
 
   return (
@@ -25,7 +37,7 @@ export default async function PromocionesPage() {
           <p className="text-gray-500">No hay promociones activas registradas en este momento.</p>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {promotions.map((promo: any) => (
+            {promotions.map((promo) => (
               <PromotionBanner key={promo.id} promotion={promo} />
             ))}
           </div>

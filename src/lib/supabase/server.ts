@@ -9,14 +9,16 @@ export function createServerSupabaseClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const allowServiceRoleFallback =
+    process.env.NODE_ENV !== 'production' &&
+    process.env.SUPABASE_ALLOW_SERVICE_ROLE_FALLBACK === 'true';
 
   if (!url) {
     return null;
   }
 
-  // Fallback for server-side reads/jobs when anon key is not configured locally.
-  // Admin auth paths still enforce role checks and middleware validation.
-  if (!anonKey && serviceRoleKey) {
+  // Explicit local-only fallback. In production, fail closed when anon key is missing.
+  if (!anonKey && serviceRoleKey && allowServiceRoleFallback) {
     return createClient(url, serviceRoleKey, {
       auth: {
         autoRefreshToken: false,
@@ -39,14 +41,14 @@ export function createServerSupabaseClient() {
       set(name: string, value: string, options: CookieOptions) {
         try {
           cookieStore.set({ name, value, ...options });
-        } catch (error) {
+        } catch {
           // Ignored in RSC context
         }
       },
       remove(name: string, options: CookieOptions) {
         try {
           cookieStore.set({ name, value: '', ...options });
-        } catch (error) {
+        } catch {
           // Ignored
         }
       },

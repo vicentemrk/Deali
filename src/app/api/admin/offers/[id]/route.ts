@@ -5,6 +5,17 @@ import { apiError } from '@/lib/apiError';
 import { isAdminUser } from '@/lib/adminAuth';
 import { updateOfferSchema } from '@/lib/adminValidation';
 
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return String(error);
+}
+
+function isZodError(error: unknown): error is { name: string; message: string } {
+  return Boolean(error) && typeof error === 'object' && 'name' in error && (error as { name?: string }).name === 'ZodError';
+}
+
 /**
  * PUT request to update an offer.
  * Invalidates both offers and stores cache when offer is updated.
@@ -39,11 +50,11 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     ]);
 
     return NextResponse.json(data);
-  } catch (error: any) {
-    if (error?.name === 'ZodError') {
-      return apiError('INVALID_PAYLOAD', error.message || 'Invalid request payload', 400);
+  } catch (error: unknown) {
+    if (isZodError(error)) {
+      return apiError('INVALID_PAYLOAD', getErrorMessage(error) || 'Invalid request payload', 400);
     }
-    return apiError('UPDATE_OFFER_FAILED', error.message || String(error), 500);
+    return apiError('UPDATE_OFFER_FAILED', getErrorMessage(error), 500);
   }
 }
 
@@ -53,6 +64,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
  */
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
   try {
+    void req;
     const offerId = params.id;
     const supabase = createServerSupabaseClient();
     if (!supabase) {
@@ -78,7 +90,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     ]);
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    return apiError('DELETE_OFFER_FAILED', error.message || String(error), 500);
+  } catch (error: unknown) {
+    return apiError('DELETE_OFFER_FAILED', getErrorMessage(error), 500);
   }
 }

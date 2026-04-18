@@ -1,7 +1,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
-import { OfferCard } from '@/components/OfferCard';
+import { OfferCard, type OfferCardData } from '@/components/OfferCard';
 
 interface StoreSectionProps {
   store: {
@@ -10,7 +10,7 @@ interface StoreSectionProps {
     color_hex: string;
     logo_url?: string;
   };
-  offers: any[];
+  offers: OfferCardData[];
 }
 
 export function StoreSection({ store, offers }: StoreSectionProps) {
