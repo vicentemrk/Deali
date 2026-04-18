@@ -1,6 +1,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { DynamicMenu } from './DynamicMenu';
+import { MobileMenu } from './MobileMenu';
 import { CATEGORY_OPTIONS } from '@/lib/catalog';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 
@@ -107,35 +108,43 @@ export async function Navbar() {
   );
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border bg-white/85 backdrop-blur-xl">
-      <div className="container mx-auto grid grid-cols-1 items-center gap-3 px-4 py-3 sm:px-6 lg:grid-cols-[auto_auto_1fr] lg:gap-6">
-        <Link href="/" className="inline-flex items-center gap-2 text-3xl font-black tracking-tight text-teal">
+    <header className="sticky top-0 z-40 border-b border-border/80 bg-white/80 backdrop-blur-xl">
+      <div className="container mx-auto flex items-center justify-between gap-4 px-4 py-3 sm:px-6">
+        {/* Logo */}
+        <Link href="/" className="inline-flex items-center gap-2 text-2xl font-black tracking-tight text-teal transition-transform hover:scale-[1.03] sm:text-3xl">
           <span className="font-display">Deali.</span>
         </Link>
 
+        {/* Desktop Nav */}
         <div className="hidden flex-shrink-0 lg:block">
           <DynamicMenu categories={menuCategories} />
         </div>
 
-        <form action="/buscar" method="GET" className="flex w-full items-center gap-2 lg:justify-end">
-          <div className="relative w-full max-w-2xl">
-            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-ink-weak">
-              <svg className="h-5 w-5" aria-hidden="true" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
+        {/* Search + Mobile Menu */}
+        <div className="flex items-center gap-3 lg:flex-1 lg:justify-end">
+          <form action="/buscar" method="GET" className="hidden w-full max-w-md items-center gap-2 sm:flex lg:justify-end">
+            <div className="relative w-full">
+              <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-ink-weak">
+                <svg className="h-4 w-4" aria-hidden="true" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+              <input
+                type="search"
+                name="q"
+                className="block w-full rounded-xl border border-border bg-bg-input p-2.5 pl-9 text-sm text-ink outline-none transition-all placeholder:text-ink-weak focus:border-purple focus:ring-2 focus:ring-purple/20"
+                placeholder="Buscar ofertas..."
+                required
+              />
             </div>
-            <input
-              type="search"
-              name="q"
-              className="block w-full rounded-full border border-border bg-bg-input p-3 pl-10 text-sm text-ink outline-none transition-all placeholder:text-ink-weak focus:border-purple focus:ring-2 focus:ring-purple/30"
-              placeholder="Buscar marcas, pisco, arroz, atún..."
-              required
-            />
-          </div>
-          <button type="submit" className="rounded-full bg-purple px-4 py-2 text-xs font-bold uppercase tracking-wide text-white hover:bg-purple/90 sm:text-sm">
-            Buscar
-          </button>
-        </form>
+            <button type="submit" className="rounded-xl bg-purple px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-white shadow-sm transition-all hover:bg-purple/90 hover:shadow-md hover:shadow-purple/20">
+              Buscar
+            </button>
+          </form>
+
+          {/* Mobile Menu Button */}
+          <MobileMenu categories={menuCategories} />
+        </div>
       </div>
     </header>
   );

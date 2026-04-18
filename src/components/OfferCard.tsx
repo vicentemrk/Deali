@@ -1,5 +1,6 @@
 import React from 'react';
 import Image from 'next/image';
+import { ExternalLink } from 'lucide-react';
 
 export type OfferCardData = {
   offer_id?: string;
@@ -13,6 +14,10 @@ export type OfferCardData = {
   thumbnailUrl?: string;
   category_name?: string;
   categoryName?: string;
+  store_name?: string;
+  storeName?: string;
+  store_color_hex?: string;
+  storeColorHex?: string;
   original_price?: number | string;
   originalPrice?: number | string;
   offer_price?: number | string;
@@ -40,6 +45,8 @@ export function OfferCard({ offer }: OfferCardProps) {
     offer.thumbnailUrl ||
     '';
   const categoryName = offer.category_name || offer.categoryName || 'General';
+  const storeName = offer.store_name || offer.storeName || '';
+  const storeColor = offer.store_color_hex || offer.storeColorHex || '#6b7280';
   const originalPrice = Number(offer.original_price ?? offer.originalPrice ?? 0);
   const offerPrice = Number(offer.offer_price ?? offer.offerPrice ?? 0);
   const discountPct = Number(offer.discount_pct ?? offer.discountPct ?? 0);
@@ -62,86 +69,92 @@ export function OfferCard({ offer }: OfferCardProps) {
   const hasValidPrice = Number.isFinite(offerPrice) && offerPrice > 0;
 
   return (
-    <article className="group relative flex h-full flex-col overflow-hidden rounded-3xl border border-border bg-bg-card p-4 shadow-soft transition-all duration-300 hover:-translate-y-1 hover:shadow-card sm:p-5">
-      <div className="pointer-events-none absolute -inset-8 bg-gradient-to-br from-teal-light/70 via-purple-light/60 to-transparent opacity-0 blur-2xl transition-opacity duration-500 group-hover:opacity-100" />
+    <article className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-white/80 bg-white/80 p-4 shadow-sm backdrop-blur-sm transition-all duration-300 hover:-translate-y-1.5 hover:shadow-xl hover:shadow-purple/10 sm:p-5">
+      {/* Subtle gradient glow on hover */}
+      <div className="pointer-events-none absolute -inset-6 bg-gradient-to-br from-teal/5 via-purple/5 to-transparent opacity-0 blur-2xl transition-opacity duration-500 group-hover:opacity-100" />
 
-      <div className="absolute right-4 top-4 z-20 rounded-xl bg-deal-red px-3 py-1.5 text-xs font-extrabold text-white shadow-md">
-        -{Math.max(0, discountPct)}%
+      {/* Discount badge */}
+      <div className="absolute right-3 top-3 z-20 rounded-xl bg-gradient-to-r from-red-500 to-red-600 px-3 py-1.5 text-xs font-extrabold text-white shadow-lg shadow-red-500/25">
+        -{Math.max(0, Math.round(discountPct))}%
       </div>
 
+      {/* Expiring soon badge */}
       {expiresSoon && (
-        <div className="absolute right-4 top-14 z-20 rounded-lg bg-amber px-2 py-1 text-[10px] font-bold text-white shadow-md animate-pulse">
+        <div className="absolute right-3 top-12 z-20 rounded-lg bg-amber-500 px-2 py-1 text-[10px] font-bold text-white shadow-md animate-pulse">
           ¡Expira pronto!
         </div>
       )}
 
-      <div className="relative z-10 mb-3 mt-10 h-36 w-full overflow-hidden rounded-2xl border border-border/70 bg-white transition-transform duration-500 ease-out group-hover:scale-[1.02] sm:mt-12 sm:h-40">
+      {/* Store badge */}
+      {storeName && (
+        <div
+          className="absolute left-3 top-3 z-20 rounded-lg px-2.5 py-1 text-[10px] font-bold text-white shadow-sm"
+          style={{ backgroundColor: storeColor }}
+        >
+          {storeName}
+        </div>
+      )}
+
+      {/* Image */}
+      <div className="relative z-10 mx-auto mb-3 mt-8 h-32 w-full overflow-hidden rounded-xl bg-gradient-to-br from-gray-50 to-white transition-transform duration-500 ease-out group-hover:scale-[1.03] sm:mt-10 sm:h-36">
         {productImageUrl ? (
           <Image
             src={productImageUrl}
             alt={productName}
             fill
             sizes="(max-width: 640px) 100vw, 280px"
-            className="absolute inset-0 h-full w-full object-contain drop-shadow-sm mix-blend-multiply p-2"
+            className="absolute inset-0 h-full w-full object-contain p-3 mix-blend-multiply drop-shadow-sm"
             referrerPolicy="no-referrer"
           />
         ) : (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-teal-light via-white to-purple-light">
-            <svg
-              className="mb-3 h-20 w-20 text-teal/35"
-              fill="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <circle cx="12" cy="6" r="3.5" opacity="0.8" />
-              <path d="M 8.5 6 L 8 16 C 8 18.2 9.8 20 12 20 C 14.2 20 16 18.2 16 16 L 15.5 6" opacity="0.9" />
-              <circle cx="12" cy="16" r="3.5" opacity="0.7" />
-            </svg>
-            <span className="px-3 text-center text-xs font-semibold leading-tight text-teal/40">
-              {initials || 'PRODUCTO'}
+            <span className="text-3xl font-black text-teal/20">
+              {initials || '?'}
             </span>
           </div>
         )}
       </div>
 
-      <div className="z-10 mt-2 flex flex-grow flex-col">
-        <span className="mb-2 inline-block w-max rounded-md bg-purple-light px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-purple">
+      {/* Content */}
+      <div className="z-10 mt-1 flex flex-grow flex-col">
+        <span className="mb-1.5 inline-block w-max rounded-md bg-purple-light/70 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.1em] text-purple">
           {categoryName}
         </span>
 
-        <h3 className="mb-2 line-clamp-2 text-[15px] font-bold leading-snug text-ink-strong transition-colors duration-200 group-hover:text-teal">
+        <h3 className="mb-2 line-clamp-2 text-sm font-bold leading-snug text-gray-900 transition-colors duration-200 group-hover:text-teal">
           {productName}
         </h3>
 
         <div className="flex-grow" />
 
-        <div className="mb-4 mt-3 flex items-end gap-2">
-          <span className="text-2xl font-black tracking-tight text-teal sm:text-3xl">
-            {hasValidPrice ? `$${offerPrice.toLocaleString('es-CL')}` : 'Precio no disponible'}
+        {/* Price */}
+        <div className="mb-3 mt-2 flex items-end gap-2">
+          <span className="text-xl font-black tracking-tight text-teal sm:text-2xl">
+            {hasValidPrice ? `$${offerPrice.toLocaleString('es-CL')}` : 'Sin precio'}
           </span>
           {originalPrice > offerPrice && (
-            <span className="mb-1 text-sm font-semibold text-ink-weak line-through">
+            <span className="mb-0.5 text-xs font-semibold text-ink-weak line-through decoration-red-400">
               ${originalPrice.toLocaleString('es-CL')}
             </span>
           )}
         </div>
 
-        <div className="flex items-center justify-between gap-3 border-t border-border pt-3">
-          <div className="rounded-lg border border-border bg-teal-light/70 px-2.5 py-2 text-[11px] font-bold text-ink-weak shadow-sm sm:px-3 sm:text-xs">
+        {/* Footer */}
+        <div className="flex items-center justify-between gap-2 border-t border-gray-100 pt-3">
+          <div className="rounded-lg bg-gray-50 px-2.5 py-1.5 text-[10px] font-semibold text-ink-weak">
             {endDate
               ? `Hasta ${endDate.toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}`
-              : 'Vigencia indefinida'}
+              : 'Vigente'}
           </div>
-          
+
           <a
             href={offerUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="group/btn inline-flex items-center gap-2 rounded-xl bg-purple px-4 py-2.5 text-xs font-bold text-white shadow-md transition-all hover:bg-purple/90 hover:shadow-lg hover:shadow-purple/30"
+            className="group/btn inline-flex items-center gap-1.5 rounded-xl bg-purple px-3.5 py-2 text-[11px] font-bold text-white shadow-sm transition-all hover:bg-purple/90 hover:shadow-md hover:shadow-purple/25"
           >
             Ver Oferta
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 transition-transform group-hover/btn:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
-            </svg>
+            <ExternalLink className="h-3 w-3 transition-transform group-hover/btn:translate-x-0.5" />
           </a>
         </div>
       </div>

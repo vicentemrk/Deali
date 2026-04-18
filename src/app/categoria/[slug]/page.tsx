@@ -1,58 +1,23 @@
 import React from 'react';
 import { OfferCard } from '@/components/OfferCard';
+import { Pagination } from '@/components/Pagination';
 import { Footer } from '@/components/Footer';
 import Link from 'next/link';
+import { ArrowLeft, SlidersHorizontal, Tag } from 'lucide-react';
 import { SORT_OPTIONS } from '@/lib/catalog';
 import { fetchJson, type OfferCardData, type PagedOffersResponse } from '@/lib/siteData';
+
+export const revalidate = 1800;
 
 interface PageProps {
   params: Promise<{ slug: string }> | { slug: string };
   searchParams: Promise<{ page?: string; sort?: string }> | { page?: string; sort?: string };
 }
 
-const CATEGORY_DEMO_OFFERS: OfferCardData[] = [
-  {
-    offer_id: 'demo-category-1',
-    product_name: 'Pack yogurt natural 8u',
-    category_name: 'Lacteos',
-    original_price: 3290,
-    offer_price: 2490,
-    discount_pct: 24,
-    offer_url: '#',
-  },
-  {
-    offer_id: 'demo-category-2',
-    product_name: 'Queso gauda laminado 500g',
-    category_name: 'Lacteos',
-    original_price: 5390,
-    offer_price: 3990,
-    discount_pct: 26,
-    offer_url: '#',
-  },
-  {
-    offer_id: 'demo-category-3',
-    product_name: 'Leche semidescremada 1L x6',
-    category_name: 'Lacteos',
-    original_price: 6390,
-    offer_price: 5190,
-    discount_pct: 19,
-    offer_url: '#',
-  },
-  {
-    offer_id: 'demo-category-4',
-    product_name: 'Mantequilla sin sal 250g',
-    category_name: 'Lacteos',
-    original_price: 2890,
-    offer_price: 2290,
-    discount_pct: 21,
-    offer_url: '#',
-  },
-];
-
 export async function generateMetadata({ params }: PageProps) {
   const resolvedParams = await Promise.resolve(params);
   const slug = resolvedParams?.slug || 'categoria';
-  const catName = slug.replace('-', ' ');
+  const catName = slug.replace(/-/g, ' ');
   return {
     title: `Ofertas de ${catName} | Deali`,
     description: `Encuentra las mejores ofertas en la categoría ${catName}.`,
@@ -68,79 +33,86 @@ export default async function CategoryPage({ params, searchParams }: PageProps) 
   const sort = resolvedSearchParams?.sort || 'discount_desc';
   const pageNumber = Math.max(1, Number.parseInt(page, 10) || 1);
   const pageSize = 20;
-  
+
   const data = await fetchJson<PagedOffersResponse>(`/api/offers?category=${slug}&page=${page}&limit=${pageSize}&sort=${sort}`, { next: { revalidate: 1800 } });
-  const apiOffers = data?.data || [];
-  const offers: OfferCardData[] = apiOffers.length > 0 ? apiOffers : CATEGORY_DEMO_OFFERS;
-  const total = apiOffers.length > 0 ? data?.total || 0 : CATEGORY_DEMO_OFFERS.length;
+  const offers: OfferCardData[] = data?.data || [];
+  const total = data?.total || 0;
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  const hasPrev = pageNumber > 1;
-  const hasNext = pageNumber < totalPages;
+  const displayName = slug.replace(/-/g, ' ');
+
+  function buildHref(targetPage: number): string {
+    const p = new URLSearchParams();
+    p.set('page', String(targetPage));
+    p.set('sort', sort);
+    return `/categoria/${slug}?${p.toString()}`;
+  }
 
   return (
-    <div className="min-h-screen bg-bg-page font-sans text-gray-900 flex flex-col">
-      <main className="container mx-auto px-6 py-12 flex-1">
-        <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
+    <div className="min-h-screen font-sans text-gray-900 flex flex-col">
+      <main className="container mx-auto px-4 py-8 sm:px-6 sm:py-12 flex-1">
+        {/* Header */}
+        <div className="animate-fade-in-up mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
-            <Link href="/" className="inline-flex items-center gap-2 bg-white px-4 py-2 rounded-full border border-border shadow-sm hover:shadow text-gray-700">
+            <Link
+              href="/"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-white px-3 py-2 text-sm font-medium text-ink-weak shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md hover:text-teal"
+            >
+              <ArrowLeft className="h-4 w-4" />
               Volver
             </Link>
-            <h1 className="text-4xl font-bold capitalize text-teal">Categoría: {slug.replaceAll('-', ' ')}</h1>
+            <div className="flex items-center gap-2">
+              <Tag className="h-5 w-5 text-teal" />
+              <h1 className="text-2xl font-bold capitalize text-teal sm:text-3xl lg:text-4xl">{displayName}</h1>
+            </div>
+            {total > 0 && (
+              <span className="rounded-full bg-teal-light px-3 py-1 text-xs font-bold text-teal">
+                {total} ofertas
+              </span>
+            )}
           </div>
 
+          {/* Sort */}
           <form method="GET" className="flex items-center gap-2">
-            <input type="hidden" name="page" value={page} />
-            <label htmlFor="sort" className="text-sm font-medium text-gray-700">Ordenar por</label>
+            <input type="hidden" name="page" value="1" />
+            <SlidersHorizontal className="h-4 w-4 text-ink-weak" />
             <select
               id="sort"
               name="sort"
               defaultValue={sort}
-              className="bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm"
+              className="rounded-xl border border-border bg-white px-3 py-2 text-sm font-medium text-ink shadow-sm transition-colors focus:border-teal focus:ring-2 focus:ring-teal/20"
             >
               {SORT_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>{option.label}</option>
               ))}
             </select>
-            <button type="submit" className="bg-teal text-white text-sm rounded-lg px-3 py-2">Aplicar</button>
+            <button type="submit" className="rounded-xl bg-teal px-4 py-2 text-sm font-bold text-white shadow-sm transition-all hover:bg-teal/90 hover:shadow-md">
+              Aplicar
+            </button>
           </form>
         </div>
-        
+
         {offers.length === 0 ? (
-          <p className="text-gray-500">No hay ofertas disponibles en esta categoría.</p>
+          <div className="animate-fade-in-up rounded-2xl border border-dashed border-border bg-white/70 p-12 text-center backdrop-blur-sm">
+            <div className="text-5xl mb-4">🏷️</div>
+            <h2 className="text-xl font-bold text-gray-800 mb-2">No hay ofertas en esta categoría</h2>
+            <p className="text-gray-500">Las ofertas se actualizan cada 3 horas. Vuelve pronto!</p>
+          </div>
         ) : (
           <>
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 stagger-children">
               {offers.map((offer) => (
-                <OfferCard key={offer.offer_id} offer={offer} />
+                <div key={offer.offer_id} className="animate-fade-in-up">
+                  <OfferCard offer={offer} />
+                </div>
               ))}
             </div>
 
-            <div className="mt-8 flex items-center justify-center gap-4">
-              {hasPrev ? (
-                <Link
-                  href={`/categoria/${slug}?page=${pageNumber - 1}&sort=${encodeURIComponent(sort)}`}
-                  className="bg-white px-4 py-2 rounded-full border border-border shadow-sm hover:shadow text-gray-700"
-                >
-                  Anterior
-                </Link>
-              ) : (
-                <span className="px-4 py-2 rounded-full border border-border text-gray-400">Anterior</span>
-              )}
-
-              <span className="text-sm text-gray-600">Pagina {pageNumber} de {totalPages}</span>
-
-              {hasNext ? (
-                <Link
-                  href={`/categoria/${slug}?page=${pageNumber + 1}&sort=${encodeURIComponent(sort)}`}
-                  className="bg-white px-4 py-2 rounded-full border border-border shadow-sm hover:shadow text-gray-700"
-                >
-                  Siguiente
-                </Link>
-              ) : (
-                <span className="px-4 py-2 rounded-full border border-border text-gray-400">Siguiente</span>
-              )}
-            </div>
+            <Pagination
+              currentPage={pageNumber}
+              totalPages={totalPages}
+              buildHref={buildHref}
+            />
           </>
         )}
       </main>

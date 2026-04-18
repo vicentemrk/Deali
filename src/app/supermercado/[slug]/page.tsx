@@ -1,8 +1,10 @@
 import React from 'react';
 import { OfferCard } from '@/components/OfferCard';
+import { Pagination } from '@/components/Pagination';
 import { Footer } from '@/components/Footer';
 import { CATEGORY_OPTIONS, SORT_OPTIONS } from '@/lib/catalog';
 import Link from 'next/link';
+import { ArrowLeft, SlidersHorizontal } from 'lucide-react';
 import { fetchJson, type OfferCardData, type PagedOffersResponse } from '@/lib/siteData';
 
 export const revalidate = 1800; // ISR: regenera la página cada 30 min desde CDN
@@ -11,45 +13,6 @@ interface PageProps {
   params: Promise<{ slug: string }> | { slug: string };
   searchParams: Promise<{ page?: string; category?: string; sort?: string }> | { page?: string; category?: string; sort?: string };
 }
-
-const STORE_DEMO_OFFERS: OfferCardData[] = [
-  {
-    offer_id: 'demo-store-1',
-    product_name: 'Detergente ropa liquido 3L',
-    category_name: 'Limpieza del Hogar',
-    original_price: 8990,
-    offer_price: 6290,
-    discount_pct: 30,
-    offer_url: '#',
-  },
-  {
-    offer_id: 'demo-store-2',
-    product_name: 'Arroz grado 1 1kg',
-    category_name: 'Despensa',
-    original_price: 1790,
-    offer_price: 1290,
-    discount_pct: 28,
-    offer_url: '#',
-  },
-  {
-    offer_id: 'demo-store-3',
-    product_name: 'Atun lomitos en agua 170g',
-    category_name: 'Despensa',
-    original_price: 1590,
-    offer_price: 1190,
-    discount_pct: 25,
-    offer_url: '#',
-  },
-  {
-    offer_id: 'demo-store-4',
-    product_name: 'Pechuga de pollo bandeja 1kg',
-    category_name: 'Carnes y Pescados',
-    original_price: 6890,
-    offer_price: 5290,
-    discount_pct: 23,
-    offer_url: '#',
-  },
-];
 
 export async function generateMetadata({ params }: PageProps) {
   const resolvedParams = await Promise.resolve(params);
@@ -76,92 +39,89 @@ export default async function SupermercadoPage({ params, searchParams }: PagePro
   if (category) query.set('category', category);
   
   const data = await fetchJson<PagedOffersResponse>(`/api/stores/${slug}/offers?${query.toString()}`, { next: { revalidate: 1800 } });
-  const apiOffers = data?.data || [];
-  const offers: OfferCardData[] = apiOffers.length > 0 ? apiOffers : STORE_DEMO_OFFERS;
-  const total = apiOffers.length > 0 ? data?.total || 0 : STORE_DEMO_OFFERS.length;
+  const offers: OfferCardData[] = data?.data || [];
+  const total = data?.total || 0;
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  const hasPrev = pageNumber > 1;
-  const hasNext = pageNumber < totalPages;
+  const storeName = slug.charAt(0).toUpperCase() + slug.slice(1).replace(/-/g, ' ');
 
-  const prevParams = new URLSearchParams();
-  prevParams.set('page', String(pageNumber - 1));
-  prevParams.set('sort', sort);
-  if (category) prevParams.set('category', category);
-
-  const nextParams = new URLSearchParams();
-  nextParams.set('page', String(pageNumber + 1));
-  nextParams.set('sort', sort);
-  if (category) nextParams.set('category', category);
+  function buildHref(targetPage: number): string {
+    const p = new URLSearchParams();
+    p.set('page', String(targetPage));
+    p.set('sort', sort);
+    if (category) p.set('category', category);
+    return `/supermercado/${slug}?${p.toString()}`;
+  }
 
   return (
-    <div className="min-h-screen bg-bg-page font-sans text-gray-900 flex flex-col">
-      <main className="container mx-auto px-6 py-12 flex-1">
-        <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
-          <div className="flex items-center gap-4">
-            <Link href="/" className="inline-flex items-center gap-2 bg-white px-4 py-2 rounded-full border border-border shadow-sm hover:shadow text-gray-700">
+    <div className="min-h-screen font-sans text-gray-900 flex flex-col">
+      <main className="container mx-auto px-4 py-8 sm:px-6 sm:py-12 flex-1">
+        {/* Header */}
+        <div className="animate-fade-in-up mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <Link
+              href="/"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-white px-3 py-2 text-sm font-medium text-ink-weak shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md hover:text-teal"
+            >
+              <ArrowLeft className="h-4 w-4" />
               Volver
             </Link>
-            <h1 className="text-4xl font-bold capitalize text-purple m-0">Ofertas en {slug}</h1>
+            <h1 className="text-2xl font-bold capitalize text-purple sm:text-3xl lg:text-4xl">{storeName}</h1>
+            {total > 0 && (
+              <span className="rounded-full bg-purple-light px-3 py-1 text-xs font-bold text-purple">
+                {total} ofertas
+              </span>
+            )}
           </div>
 
+          {/* Filters */}
           <form method="GET" className="flex flex-wrap items-center gap-2">
-            <input type="hidden" name="page" value={page} />
+            <input type="hidden" name="page" value="1" />
 
-            <label htmlFor="sort" className="text-sm font-medium text-gray-700">Ordenar</label>
-            <select id="sort" name="sort" defaultValue={sort} className="bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm">
+            <div className="flex items-center gap-1.5 text-sm text-ink-weak">
+              <SlidersHorizontal className="h-4 w-4" />
+            </div>
+
+            <select id="sort" name="sort" defaultValue={sort} className="rounded-xl border border-border bg-white px-3 py-2 text-sm font-medium text-ink shadow-sm transition-colors focus:border-purple focus:ring-2 focus:ring-purple/20">
               {SORT_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>{option.label}</option>
               ))}
             </select>
 
-            <label htmlFor="category" className="text-sm font-medium text-gray-700">Categoría</label>
-            <select id="category" name="category" defaultValue={category} className="bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm">
-              <option value="">Todas</option>
+            <select id="category" name="category" defaultValue={category} className="rounded-xl border border-border bg-white px-3 py-2 text-sm font-medium text-ink shadow-sm transition-colors focus:border-purple focus:ring-2 focus:ring-purple/20">
+              <option value="">Todas las categorías</option>
               {CATEGORY_OPTIONS.map((option) => (
                 <option key={option.slug} value={option.slug}>{option.name}</option>
               ))}
             </select>
 
-            <button type="submit" className="bg-purple text-white text-sm rounded-lg px-3 py-2">Aplicar</button>
+            <button type="submit" className="rounded-xl bg-purple px-4 py-2 text-sm font-bold text-white shadow-sm transition-all hover:bg-purple/90 hover:shadow-md hover:shadow-purple/20">
+              Aplicar
+            </button>
           </form>
         </div>
         
         {offers.length === 0 ? (
-          <p className="text-gray-500">No hay ofertas activas en esta tienda.</p>
+          <div className="animate-fade-in-up rounded-2xl border border-dashed border-border bg-white/70 p-12 text-center backdrop-blur-sm">
+            <div className="text-5xl mb-4">🔍</div>
+            <h2 className="text-xl font-bold text-gray-800 mb-2">No hay ofertas disponibles</h2>
+            <p className="text-gray-500">No se encontraron ofertas activas en esta tienda con los filtros seleccionados.</p>
+          </div>
         ) : (
           <>
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 stagger-children">
               {offers.map((offer) => (
-                <OfferCard key={offer.offer_id} offer={offer} />
+                <div key={offer.offer_id} className="animate-fade-in-up">
+                  <OfferCard offer={offer} />
+                </div>
               ))}
             </div>
 
-            <div className="mt-8 flex items-center justify-center gap-4">
-              {hasPrev ? (
-                <Link
-                  href={`/supermercado/${slug}?${prevParams.toString()}`}
-                  className="bg-white px-4 py-2 rounded-full border border-border shadow-sm hover:shadow text-gray-700"
-                >
-                  Anterior
-                </Link>
-              ) : (
-                <span className="px-4 py-2 rounded-full border border-border text-gray-400">Anterior</span>
-              )}
-
-              <span className="text-sm text-gray-600">Pagina {pageNumber} de {totalPages}</span>
-
-              {hasNext ? (
-                <Link
-                  href={`/supermercado/${slug}?${nextParams.toString()}`}
-                  className="bg-white px-4 py-2 rounded-full border border-border shadow-sm hover:shadow text-gray-700"
-                >
-                  Siguiente
-                </Link>
-              ) : (
-                <span className="px-4 py-2 rounded-full border border-border text-gray-400">Siguiente</span>
-              )}
-            </div>
+            <Pagination
+              currentPage={pageNumber}
+              totalPages={totalPages}
+              buildHref={buildHref}
+            />
           </>
         )}
       </main>
