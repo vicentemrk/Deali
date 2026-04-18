@@ -1,5 +1,6 @@
 import { chromium } from 'playwright';
 import { StoreScraper, RawOffer } from './types';
+import { parsePrice, parsePrices } from '../lib/priceParser';
 
 const TARGET_PRODUCTS   = 75;
 
@@ -38,22 +39,11 @@ export class AcuentaScraper implements StoreScraper {
   }
 
   private parseMoney(raw: string | null | undefined): number {
-    return this.parseMoneyValues(raw)[0] || 0;
+    return parsePrice(raw);
   }
 
   private parseMoneyValues(raw: string | null | undefined): number[] {
-    if (!raw) return [];
-
-    const fromCurrency = Array.from(raw.matchAll(/\$\s*([\d\.]+)/g), (match) => match[1]);
-    const candidates = fromCurrency.length > 0
-      ? fromCurrency
-      : (raw.match(/\d{1,3}(?:\.\d{3})+|\d+/g) || []);
-
-    const values = candidates
-      .map((value) => parseInt(value.replace(/\./g, ''), 10))
-      .filter((value) => Number.isFinite(value) && value > 0 && value <= 1_000_000);
-
-    return values;
+    return parsePrices(raw);
   }
 
   private async safeText(locator: any): Promise<string | null> {

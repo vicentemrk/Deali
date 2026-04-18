@@ -1,5 +1,6 @@
 import { chromium } from 'playwright';
 import { RawOffer } from './types';
+import { parsePrice } from '../lib/priceParser';
 
 interface PlaywrightFallbackConfig {
   logTag: string;
@@ -9,12 +10,6 @@ interface PlaywrightFallbackConfig {
 }
 
 const MAX_SCROLL_CYCLES = 8;
-
-function parsePrice(value: string | null | undefined): number {
-  if (!value) return 0;
-  const digits = value.replace(/[^\d]/g, '');
-  return digits ? parseInt(digits, 10) : 0;
-}
 
 export async function scrapeStoreWithPlaywrightFallback(
   config: PlaywrightFallbackConfig

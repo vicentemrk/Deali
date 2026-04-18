@@ -72,6 +72,59 @@ export async function middleware(request: NextRequest) {
   const isAdmin = request.nextUrl.pathname.startsWith('/admin');
   const publicRoute = resolveRateLimitRoute(request.nextUrl.pathname);
 
+  // Auth check EARLY for admin routes (before body parsing in handlers)
+  // This prevents DoS attacks via large payloads on unauthenticated requests
+  if ((isApiAdmin || isAdmin) && (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)) {
+    if (isApiAdmin) {
+      return NextResponse.json(
+        { error: true, code: 'SUPABASE_INIT_FAILED', message: 'Supabase configuration missing' },
+        { status: 500 }
+      );
+    }
+    const url = request.nextUrl.clone();
+    url.pathname = '/login';
+    return NextResponse.redirect(url);
+  }
+
+  // Auth check for admin routes BEFORE other processing
+  if (isApiAdmin || isAdmin) {
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
+      {
+        cookies: {
+          get(name: string) {
+            return request.cookies.get(name)?.value;
+          },
+          set(name: string, value: string, options: CookieOptions) {
+            // Noop for middleware
+          },
+          remove(name: string, options: CookieOptions) {
+            // Noop for middleware
+          },
+        },
+      }
+    );
+
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      if (isApiAdmin) {
+        return NextResponse.json({ error: true, code: 'UNAUTHORIZED', message: 'Unauthorized' }, { status: 401 });
+      }
+      const url = request.nextUrl.clone();
+      url.pathname = '/login';
+      return NextResponse.redirect(url);
+    }
+
+    // Auth passed, continue with request
+    return NextResponse.next({
+      request: {
+        headers: request.headers,
+      },
+    });
+  }
+
   const baseResponse = NextResponse.next({
     request: {
       headers: request.headers,
@@ -109,55 +162,8 @@ export async function middleware(request: NextRequest) {
     return baseResponse;
   }
 
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-    if (isApiAdmin) {
-      return NextResponse.json({ error: true, code: 'SUPABASE_INIT_FAILED', message: 'Supabase configuration missing' }, { status: 500 });
-    }
-    const url = request.nextUrl.clone();
-    url.pathname = '/login';
-    return NextResponse.redirect(url);
-  }
-
-  let supabaseResponse = baseResponse;
-
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    {
-      cookies: {
-        get(name: string) {
-          return request.cookies.get(name)?.value;
-        },
-        set(name: string, value: string, options: CookieOptions) {
-          request.cookies.set({ name, value, ...options });
-          supabaseResponse = NextResponse.next({
-            request: { headers: request.headers },
-          });
-          supabaseResponse.cookies.set({ name, value, ...options });
-        },
-        remove(name: string, options: CookieOptions) {
-          request.cookies.set({ name, value: '', ...options });
-          supabaseResponse = NextResponse.next({
-            request: { headers: request.headers },
-          });
-          supabaseResponse.cookies.set({ name, value: '', ...options });
-        },
-      },
-    }
-  );
-
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user && (isApiAdmin || isAdmin)) {
-    if (isApiAdmin) {
-      return NextResponse.json({ error: true, code: 'UNAUTHORIZED', message: 'Unauthorized' }, { status: 401 });
-    }
-    const url = request.nextUrl.clone();
-    url.pathname = '/login';
-    return NextResponse.redirect(url);
-  }
-
-  return supabaseResponse;
+  // This point should not be reached as admin requests are handled above
+  return baseResponse;
 }
 
 export const config = {

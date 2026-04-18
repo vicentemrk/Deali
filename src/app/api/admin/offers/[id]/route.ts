@@ -5,6 +5,7 @@ import { apiError } from '@/lib/apiError';
 
 /**
  * PUT request to update an offer.
+ * Invalidates both offers and stores cache when offer is updated.
  */
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -24,7 +25,12 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
     if (error) throw error;
 
-    await invalidatePrefix('offers:');
+    // Invalidate both offers and stores caches (offer count may have changed)
+    await Promise.all([
+      invalidatePrefix('offers:'),
+      invalidatePrefix('stores:list'),
+    ]);
+
     return NextResponse.json(data);
   } catch (error: any) {
     return apiError('UPDATE_OFFER_FAILED', error.message || String(error), 500);
@@ -33,6 +39,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
 /**
  * DELETE request to delete an offer.
+ * Invalidates both offers and stores cache when offer is removed.
  */
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -49,7 +56,12 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
 
     if (error) throw error;
 
-    await invalidatePrefix('offers:');
+    // Invalidate both offers and stores caches (offer count will change)
+    await Promise.all([
+      invalidatePrefix('offers:'),
+      invalidatePrefix('stores:list'),
+    ]);
+
     return NextResponse.json({ success: true });
   } catch (error: any) {
     return apiError('DELETE_OFFER_FAILED', error.message || String(error), 500);

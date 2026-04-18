@@ -1,6 +1,7 @@
 import { StoreScraper, RawOffer } from './types';
 import { fetchVtexMultiCategory } from './vtexCategoryFetcher';
 import { scrapeStoreWithPlaywrightFallback } from './playwrightStoreFallback';
+import { parseCLP } from '../lib/priceParser';
 
 const TOTTUS_WIDGET_IDS = [
   'a9ac056e-1873-41c6-a7dc-c21087548c41',
@@ -13,12 +14,6 @@ const TOTTUS_ZONES = [
   'PCL2269', 'PCL4976', 'PCL651', 'LEG_TOTTUS_DOMINICOS_1', 'PCL596', 'PCL226', 'PCL108',
   'PCL2288', 'PCL3232', 'PCL3145', 'PCL1394', 'PCL5090', 'PCL5234', 'PCL2792',
 ].join(',');
-
-function parseCLP(raw: string | undefined): number {
-  if (!raw) return 0;
-  const digits = raw.replace(/[^\d]/g, '');
-  return digits ? parseInt(digits, 10) : 0;
-}
 
 async function fetchTottusRecommendedOffers(cookieHeader?: string): Promise<RawOffer[]> {
   const offers: RawOffer[] = [];

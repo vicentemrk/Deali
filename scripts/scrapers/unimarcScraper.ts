@@ -1,4 +1,5 @@
 import { StoreScraper, RawOffer } from './types';
+import { parsePrice } from '../lib/priceParser';
 
 const TARGET_PRODUCTS   = 75;
 
@@ -43,8 +44,7 @@ export class UnimarcScraper implements StoreScraper {
 
   private parseMoney(raw: string | number | null | undefined): number {
     if (typeof raw === 'number') return Number.isFinite(raw) ? raw : 0;
-    const digits = (raw || '').replace(/[^\d]/g, '');
-    return digits ? parseInt(digits, 10) : 0;
+    return parsePrice(raw as string | null | undefined);
   }
 
   private extractCategoryHintFromProduct(product: UnimarcProduct): string | null {

@@ -1,5 +1,6 @@
 export const CATEGORY_OPTIONS = [
   { name: 'Bebidas', slug: 'bebidas' },
+  { name: 'Bebidas Alcohólicas', slug: 'bebidas-alcoholicas' },
   { name: 'Lácteos', slug: 'lacteos' },
   { name: 'Carnes y Pescados', slug: 'carnes-pescados' },
   { name: 'Frutas y Verduras', slug: 'frutas-verduras' },

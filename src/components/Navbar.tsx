@@ -81,18 +81,18 @@ export async function Navbar() {
       const built = buildHeaderCategories(parsed);
       const supportedSlugs = new Set(CATEGORY_OPTIONS.map((cat) => cat.slug));
       const filteredBuilt = built
-        .filter((category) => supportedSlugs.has(category.slug))
+        .filter((category) => supportedSlugs.has(category.slug as any))
         .map((category) => ({
           ...category,
-          children: (category.children || []).filter((child) => supportedSlugs.has(child.slug)),
+          children: (category.children || []).filter((child) => supportedSlugs.has(child.slug as any)),
         }))
-        .filter((category) => category.children.length > 0 || supportedSlugs.has(category.slug));
+        .filter((category) => category.children.length > 0 || supportedSlugs.has(category.slug as any));
 
-      dynamicCategories = filteredBuilt.length > 0
+      dynamicCategories = (filteredBuilt.length > 0
         ? filteredBuilt
         : parsed
-            .filter((cat) => supportedSlugs.has(cat.slug))
-            .map((cat) => ({ id: cat.id, name: cat.name, slug: cat.slug }));
+            .filter((cat) => supportedSlugs.has(cat.slug as any))
+            .map((cat) => ({ id: cat.slug, name: cat.name, slug: cat.slug }))) as typeof dynamicCategories;
     }
   }
 

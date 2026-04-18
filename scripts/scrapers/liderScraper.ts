@@ -1,6 +1,7 @@
 import { StoreScraper, RawOffer } from './types';
 import { fetchVtexMultiCategory } from './vtexCategoryFetcher';
 import { scrapeStoreWithPlaywrightFallback } from './playwrightStoreFallback';
+import { parseCLP } from '../lib/priceParser';
 
 const LIDER_PROMO_URLS = [
   'https://super.lider.cl/content/productos-a-mil/96311243?ContentZone3&co_ty=Hubspokes&co_nm=tusfavoritos_W15&co_id=09042026_trafico_vertodo&co_or=1',
@@ -10,12 +11,6 @@ const LIDER_PROMO_URLS = [
   'https://super.lider.cl/browse/Productos-a-mil/Productos-a-2000/96311243_24584919?ContentZone3&co_ty=Hubspokes&co_nm=tusfavoritos_W15&co_id=09042026_trafico_productos2mil&co_or=3',
   'https://super.lider.cl/browse/Productos-a-mil/Productos-a-3000/96311243_26319580?ContentZone3&co_ty=Hubspokes&co_nm=tusfavoritos_W15&co_id=09042026_trafico_productos3mil&co_or=4',
 ];
-
-function parseCLP(raw: string | undefined): number {
-  if (!raw) return 0;
-  const digits = raw.replace(/[^\d]/g, '');
-  return digits ? parseInt(digits, 10) : 0;
-}
 
 async function fetchLiderHtmlOffers(cookieHeader?: string): Promise<RawOffer[]> {
   const offers: RawOffer[] = [];
@@ -65,6 +60,7 @@ async function fetchLiderHtmlOffers(cookieHeader?: string): Promise<RawOffer[]> 
         const categoryMatch = merged.match(/"categoryPath":"(?<cat>[^\"]+)"/);
 
         const offerPrice = price;
+        // Use shared priceParser instead of local function
         const wasPrice = parseCLP(wasPriceMatch?.groups?.was);
         const originalPrice = wasPrice > offerPrice ? wasPrice : offerPrice;
 
