@@ -25,7 +25,7 @@ export async function GET() {
   try {
     const supabase = await createServerSupabaseClient();
     if (!supabase) {
-      return apiError('SUPABASE_INIT_FAILED', 'Supabase client initialization failed', 500);
+      return apiError('DB_NOT_CONFIGURED', 'Supabase client initialization failed', 503);
     }
     
     // Get today's date in YYYY-MM-DD format

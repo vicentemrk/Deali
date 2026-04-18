@@ -50,15 +50,29 @@ export type PagedOffersResponse = {
 };
 
 export function getAppBaseUrl(): string {
-  return process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  if (process.env.NEXT_PUBLIC_APP_URL) {
+    return process.env.NEXT_PUBLIC_APP_URL;
+  }
+
+  const port = process.env.PORT || '3000';
+  return `http://localhost:${port}`;
 }
 
 export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T | null> {
+  const controller = new AbortController();
+  const timeoutMs = 8000;
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
   try {
-    const response = await fetch(`${getAppBaseUrl()}${path}`, init);
+    const response = await fetch(`${getAppBaseUrl()}${path}`, {
+      ...init,
+      signal: controller.signal,
+    });
     if (!response.ok) return null;
     return (await response.json()) as T;
   } catch {
     return null;
+  } finally {
+    clearTimeout(timeout);
   }
 }

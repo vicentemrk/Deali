@@ -6,12 +6,53 @@ import { SORT_OPTIONS } from '@/lib/catalog';
 import { fetchJson, type OfferCardData, type PagedOffersResponse } from '@/lib/siteData';
 
 interface PageProps {
-  params: { slug: string };
-  searchParams: { page?: string; sort?: string };
+  params: Promise<{ slug: string }> | { slug: string };
+  searchParams: Promise<{ page?: string; sort?: string }> | { page?: string; sort?: string };
 }
 
+const CATEGORY_DEMO_OFFERS: OfferCardData[] = [
+  {
+    offer_id: 'demo-category-1',
+    product_name: 'Pack yogurt natural 8u',
+    category_name: 'Lacteos',
+    original_price: 3290,
+    offer_price: 2490,
+    discount_pct: 24,
+    offer_url: '#',
+  },
+  {
+    offer_id: 'demo-category-2',
+    product_name: 'Queso gauda laminado 500g',
+    category_name: 'Lacteos',
+    original_price: 5390,
+    offer_price: 3990,
+    discount_pct: 26,
+    offer_url: '#',
+  },
+  {
+    offer_id: 'demo-category-3',
+    product_name: 'Leche semidescremada 1L x6',
+    category_name: 'Lacteos',
+    original_price: 6390,
+    offer_price: 5190,
+    discount_pct: 19,
+    offer_url: '#',
+  },
+  {
+    offer_id: 'demo-category-4',
+    product_name: 'Mantequilla sin sal 250g',
+    category_name: 'Lacteos',
+    original_price: 2890,
+    offer_price: 2290,
+    discount_pct: 21,
+    offer_url: '#',
+  },
+];
+
 export async function generateMetadata({ params }: PageProps) {
-  const catName = params.slug.replace('-', ' ');
+  const resolvedParams = await Promise.resolve(params);
+  const slug = resolvedParams?.slug || 'categoria';
+  const catName = slug.replace('-', ' ');
   return {
     title: `Ofertas de ${catName} | Deali`,
     description: `Encuentra las mejores ofertas en la categoría ${catName}.`,
@@ -19,14 +60,19 @@ export async function generateMetadata({ params }: PageProps) {
 }
 
 export default async function CategoryPage({ params, searchParams }: PageProps) {
-  const page = searchParams.page || '1';
-  const sort = searchParams.sort || 'discount_desc';
+  const resolvedParams = await Promise.resolve(params);
+  const resolvedSearchParams = await Promise.resolve(searchParams);
+
+  const slug = resolvedParams?.slug || 'categoria';
+  const page = resolvedSearchParams?.page || '1';
+  const sort = resolvedSearchParams?.sort || 'discount_desc';
   const pageNumber = Math.max(1, Number.parseInt(page, 10) || 1);
   const pageSize = 20;
   
-  const data = await fetchJson<PagedOffersResponse>(`/api/offers?category=${params.slug}&page=${page}&limit=${pageSize}&sort=${sort}`, { next: { revalidate: 1800 } });
-  const offers: OfferCardData[] = data?.data || [];
-  const total = data?.total || 0;
+  const data = await fetchJson<PagedOffersResponse>(`/api/offers?category=${slug}&page=${page}&limit=${pageSize}&sort=${sort}`, { next: { revalidate: 1800 } });
+  const apiOffers = data?.data || [];
+  const offers: OfferCardData[] = apiOffers.length > 0 ? apiOffers : CATEGORY_DEMO_OFFERS;
+  const total = apiOffers.length > 0 ? data?.total || 0 : CATEGORY_DEMO_OFFERS.length;
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const hasPrev = pageNumber > 1;
@@ -40,7 +86,7 @@ export default async function CategoryPage({ params, searchParams }: PageProps) 
             <Link href="/" className="inline-flex items-center gap-2 bg-white px-4 py-2 rounded-full border border-border shadow-sm hover:shadow text-gray-700">
               Volver
             </Link>
-            <h1 className="text-4xl font-bold capitalize text-teal">Categoría: {params.slug.replaceAll('-', ' ')}</h1>
+            <h1 className="text-4xl font-bold capitalize text-teal">Categoría: {slug.replaceAll('-', ' ')}</h1>
           </div>
 
           <form method="GET" className="flex items-center gap-2">
@@ -73,7 +119,7 @@ export default async function CategoryPage({ params, searchParams }: PageProps) 
             <div className="mt-8 flex items-center justify-center gap-4">
               {hasPrev ? (
                 <Link
-                  href={`/categoria/${params.slug}?page=${pageNumber - 1}&sort=${encodeURIComponent(sort)}`}
+                  href={`/categoria/${slug}?page=${pageNumber - 1}&sort=${encodeURIComponent(sort)}`}
                   className="bg-white px-4 py-2 rounded-full border border-border shadow-sm hover:shadow text-gray-700"
                 >
                   Anterior
@@ -86,7 +132,7 @@ export default async function CategoryPage({ params, searchParams }: PageProps) 
 
               {hasNext ? (
                 <Link
-                  href={`/categoria/${params.slug}?page=${pageNumber + 1}&sort=${encodeURIComponent(sort)}`}
+                  href={`/categoria/${slug}?page=${pageNumber + 1}&sort=${encodeURIComponent(sort)}`}
                   className="bg-white px-4 py-2 rounded-full border border-border shadow-sm hover:shadow text-gray-700"
                 >
                   Siguiente

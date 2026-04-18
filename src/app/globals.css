@@ -2,6 +2,22 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --color-teal: #0f766e;
+  --color-teal-light: #dff8f4;
+  --color-purple: #6d5ac2;
+  --color-purple-light: #ece9ff;
+  --color-danger: #dc2626;
+  --color-warn: #b7791f;
+  --color-bg-page: #f6f5f1;
+  --color-bg-card: #fffefa;
+  --color-bg-input: #f1f1ec;
+  --color-border: #dfded4;
+  --color-ink: #1f2937;
+  --color-ink-weak: #6b7280;
+  --color-ink-strong: #111827;
+}
+
 /* Hide scrollbar for horizontal scroll sections */
 .hidescrollbar::-webkit-scrollbar {
   display: none;
@@ -12,7 +28,18 @@
 }
 
 body {
-  background-color: var(--color-bg-page, #F4F4F0);
-  background-image: radial-gradient(circle, #D5D5CF 1.5px, transparent 1.5px);
-  background-size: 24px 24px;
+  color: var(--color-ink);
+  background-color: var(--color-bg-page);
+  background-image:
+    radial-gradient(circle at 1px 1px, rgba(17, 24, 39, 0.08) 1px, transparent 0),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(246, 245, 241, 0.96));
+  background-size: 18px 18px, 100% 100%;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-display), sans-serif;
+  letter-spacing: -0.02em;
 }

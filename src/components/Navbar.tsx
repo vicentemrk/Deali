@@ -107,38 +107,35 @@ export async function Navbar() {
   );
 
   return (
-    <header className="bg-white border-b border-border sticky top-0 z-40 shadow-sm">
-      <div className="container mx-auto px-6 py-4 flex flex-wrap items-center justify-between gap-4">
-        
-        {/* Logo */}
-        <Link href="/" className="text-3xl font-black text-teal tracking-tighter">
-          Deali.
+    <header className="sticky top-0 z-40 border-b border-border bg-white/85 backdrop-blur-xl">
+      <div className="container mx-auto grid grid-cols-1 items-center gap-3 px-4 py-3 sm:px-6 lg:grid-cols-[auto_auto_1fr] lg:gap-6">
+        <Link href="/" className="inline-flex items-center gap-2 text-3xl font-black tracking-tight text-teal">
+          <span className="font-display">Deali.</span>
         </Link>
-        
-        {/* Navigation Dropdown */}
-        <div className="hidden md:block flex-shrink-0 z-50">
-            <DynamicMenu categories={menuCategories} />
+
+        <div className="hidden flex-shrink-0 lg:block">
+          <DynamicMenu categories={menuCategories} />
         </div>
 
-        {/* Search Bar */}
-        <form action="/buscar" method="GET" className="flex-1 min-w-[200px] max-w-xl mx-auto flex">
-          <div className="relative w-full">
-            <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-gray-400">
-               <svg className="w-5 h-5" aria-hidden="true" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-               </svg>
+        <form action="/buscar" method="GET" className="flex w-full items-center gap-2 lg:justify-end">
+          <div className="relative w-full max-w-2xl">
+            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-ink-weak">
+              <svg className="h-5 w-5" aria-hidden="true" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
             </div>
-            <input 
-              type="search" 
+            <input
+              type="search"
               name="q"
-              className="block w-full p-3 pl-10 text-sm text-gray-900 border border-gray-200 rounded-full bg-bg-page focus:ring-purple focus:border-purple outline-none transition-all" 
-              placeholder="Buscar marcas, pisco, arroz, atún..." 
-              required 
+              className="block w-full rounded-full border border-border bg-bg-input p-3 pl-10 text-sm text-ink outline-none transition-all placeholder:text-ink-weak focus:border-purple focus:ring-2 focus:ring-purple/30"
+              placeholder="Buscar marcas, pisco, arroz, atún..."
+              required
             />
           </div>
-          <button type="submit" className="hidden" aria-label="Buscar">Buscar</button>
+          <button type="submit" className="rounded-full bg-purple px-4 py-2 text-xs font-bold uppercase tracking-wide text-white hover:bg-purple/90 sm:text-sm">
+            Buscar
+          </button>
         </form>
-
       </div>
     </header>
   );

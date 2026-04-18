@@ -23,6 +23,87 @@ const DEMO_STORES: StoreSummary[] = [
 
 const PRIMARY_STORE_ORDER = ['jumbo', 'lider', 'unimarc', 'tottus', 'santa-isabel', 'acuenta'];
 
+const DEMO_OFFERS: Record<string, OfferSummary[]> = {
+  jumbo: [
+    {
+      offer_id: 'demo-jumbo-1',
+      product_name: 'Aceite vegetal 900ml',
+      category_name: 'Despensa',
+      offer_price: 2990,
+      original_price: 3990,
+      discount_pct: 25,
+      offer_url: '#',
+      store_slug: 'jumbo',
+      category_slug: 'despensa',
+    },
+  ],
+  lider: [
+    {
+      offer_id: 'demo-lider-1',
+      product_name: 'Arroz grano largo 1kg',
+      category_name: 'Despensa',
+      offer_price: 1290,
+      original_price: 1690,
+      discount_pct: 24,
+      offer_url: '#',
+      store_slug: 'lider',
+      category_slug: 'despensa',
+    },
+  ],
+  unimarc: [
+    {
+      offer_id: 'demo-unimarc-1',
+      product_name: 'Queso laminado 500g',
+      category_name: 'Lacteos',
+      offer_price: 3890,
+      original_price: 5290,
+      discount_pct: 26,
+      offer_url: '#',
+      store_slug: 'unimarc',
+      category_slug: 'lacteos',
+    },
+  ],
+  tottus: [
+    {
+      offer_id: 'demo-tottus-1',
+      product_name: 'Detergente liquido 3L',
+      category_name: 'Limpieza del Hogar',
+      offer_price: 5990,
+      original_price: 8390,
+      discount_pct: 29,
+      offer_url: '#',
+      store_slug: 'tottus',
+      category_slug: 'limpieza-hogar',
+    },
+  ],
+  'santa-isabel': [
+    {
+      offer_id: 'demo-santa-1',
+      product_name: 'Pechuga de pollo 1kg',
+      category_name: 'Carnes y Pescados',
+      offer_price: 4790,
+      original_price: 6190,
+      discount_pct: 23,
+      offer_url: '#',
+      store_slug: 'santa-isabel',
+      category_slug: 'carnes-pescados',
+    },
+  ],
+  acuenta: [
+    {
+      offer_id: 'demo-acuenta-1',
+      product_name: 'Leche descremada 1L',
+      category_name: 'Lacteos',
+      offer_price: 890,
+      original_price: 1090,
+      discount_pct: 18,
+      offer_url: '#',
+      store_slug: 'acuenta',
+      category_slug: 'lacteos',
+    },
+  ],
+};
+
 export default async function HomePage() {
   const [offersData, stores, promotions] = await Promise.all([
     fetchJson<PagedOffersResponse>(`/api/offers?limit=1000&excludeCategory=${ALCOHOL_CATEGORY_SLUG}`, { cache: 'no-store' }),
@@ -33,11 +114,14 @@ export default async function HomePage() {
   const activeStores = stores || DEMO_STORES;
   const activeOffers = (offersData?.data || []) as OfferSummary[];
   const activePromotions = promotions || [];
+  const useDemoOffers = activeOffers.length === 0;
   const orderedStores = activeStores.map((store) => ({
     ...store,
-    offers: activeOffers
-      .filter((offer) => offer.store_slug === store.slug && offer.category_slug !== ALCOHOL_CATEGORY_SLUG)
-      .slice(0, 5),
+    offers: useDemoOffers
+      ? DEMO_OFFERS[store.slug] || []
+      : activeOffers
+          .filter((offer) => offer.store_slug === store.slug && offer.category_slug !== ALCOHOL_CATEGORY_SLUG)
+          .slice(0, 5),
   }));
   const sortedStores = orderedStores
     .slice()

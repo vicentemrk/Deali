@@ -3,7 +3,6 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import * as NavigationMenu from '@radix-ui/react-navigation-menu';
 import { clsx } from 'clsx';
 import { ChevronDown } from 'lucide-react';
 
@@ -24,56 +23,48 @@ export function DynamicMenu({ categories }: DynamicMenuProps) {
   const getHref = (item: Category) => item.href || `/categoria/${item.slug}`;
 
   return (
-    <NavigationMenu.Root className="relative z-50 flex w-full justify-center">
-      <NavigationMenu.List className="m-0 flex list-none rounded-xl bg-white p-1 shadow-sm border border-border gap-1">
+    <nav className="relative z-50">
+      <ul className="m-0 flex list-none items-center gap-2 rounded-full border border-border bg-white/90 p-1 shadow-soft backdrop-blur-sm">
         {categories.map((cat) => (
-          <NavigationMenu.Item key={cat.id}>
-             {cat.children && cat.children.length > 0 ? (
-                <>
-                  <NavigationMenu.Trigger className="text-gray-700 hover:text-teal focus:text-teal group flex select-none items-center justify-between gap-1 rounded-lg px-4 py-2.5 text-sm font-medium leading-none outline-none focus:bg-teal-light/40 focus:shadow-[0_0_0_2px]">
-                    {cat.name}
-                    <ChevronDown
-                      className="text-gray-400 group-data-[state=open]:rotate-180 transition-transform duration-250 ease-in"
-                      aria-hidden
-                    />
-                  </NavigationMenu.Trigger>
-                  <NavigationMenu.Content className="absolute top-full left-0 mt-3 w-[320px] max-w-[calc(100vw-2rem)]">
-                    <ul className="m-0 grid list-none gap-1 p-3 bg-white rounded-2xl shadow-xl border border-border max-h-[60vh] overflow-y-auto">
+          <li key={cat.id} className="relative">
+            {cat.children && cat.children.length > 0 ? (
+              <details className="group">
+                <summary className="flex cursor-pointer list-none items-center gap-1 rounded-full px-4 py-2 text-sm font-semibold text-ink transition-colors hover:bg-teal-light hover:text-teal">
+                  {cat.name}
+                  <ChevronDown className="h-4 w-4 text-ink-weak transition-transform group-open:rotate-180" aria-hidden />
+                </summary>
+                <div className="absolute left-0 top-full mt-2 w-[320px] max-w-[calc(100vw-2rem)] rounded-2xl border border-border bg-white p-2 shadow-soft">
+                  <ul className="grid max-h-[60vh] list-none gap-1 overflow-y-auto">
                       {cat.children.map(child => (
                         <li key={child.id}>
-                          <NavigationMenu.Link asChild>
-                            <Link 
-                                href={getHref(child)}
-                                className={clsx(
-                                  "block select-none rounded-lg px-4 py-3 text-sm leading-none no-underline outline-none transition-colors hover:bg-teal-light whitespace-nowrap",
-                                  pathname === getHref(child) ? 'text-teal font-medium' : 'text-gray-700 hover:text-teal'
-                                )}
-                            >
-                                {child.name}
-                            </Link>
-                          </NavigationMenu.Link>
+                          <Link
+                            href={getHref(child)}
+                            className={clsx(
+                              'block rounded-xl px-4 py-2.5 text-sm font-medium text-ink transition-colors hover:bg-teal-light hover:text-teal',
+                              pathname === getHref(child) ? 'bg-teal-light text-teal' : ''
+                            )}
+                          >
+                            {child.name}
+                          </Link>
                         </li>
                       ))}
                     </ul>
-                  </NavigationMenu.Content>
-                </>
-             ) : (
-                <NavigationMenu.Link asChild>
-                    <Link 
-                      href={getHref(cat)}
-                        className={clsx(
-                      "text-gray-700 hover:text-teal focus:text-teal block select-none rounded-lg px-4 py-2.5 text-sm font-medium leading-none no-underline outline-none focus:bg-teal-light/40 focus:shadow-[0_0_0_2px]",
-                        pathname === getHref(cat) ? 'text-teal font-medium' : ''
-                        )}
-                    >
-                        {cat.name}
-                    </Link>
-                </NavigationMenu.Link>
-             )}
-          </NavigationMenu.Item>
+                </div>
+              </details>
+            ) : (
+              <Link
+                href={getHref(cat)}
+                className={clsx(
+                  'block rounded-full px-4 py-2 text-sm font-semibold text-ink transition-colors hover:bg-teal-light hover:text-teal',
+                  pathname === getHref(cat) ? 'bg-teal-light text-teal' : ''
+                )}
+              >
+                {cat.name}
+              </Link>
+            )}
+          </li>
         ))}
-      </NavigationMenu.List>
-
-    </NavigationMenu.Root>
+      </ul>
+    </nav>
   );
 }

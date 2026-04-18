@@ -15,16 +15,16 @@ interface StoreSectionProps {
 
 export function StoreSection({ store, offers }: StoreSectionProps) {
   return (
-    <section className="mb-12">
-      <div className="flex items-center justify-between mb-6 bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+    <section className="mb-12 rounded-3xl border border-border bg-white/70 p-5 shadow-soft sm:p-6">
+      <div className="mb-6 flex items-center justify-between rounded-2xl border border-border bg-bg-card p-4 shadow-sm">
         <div className="flex items-center gap-3">
-          <h2 className="text-xl font-bold" style={{ color: store.color_hex }}>
+          <h2 className="font-display text-2xl font-bold" style={{ color: store.color_hex }}>
             {store.name}
           </h2>
         </div>
         <Link 
           href={`/supermercado/${store.slug}`}
-          className="flex items-center gap-1 text-sm font-medium text-gray-600 hover:text-teal transition-colors"
+          className="inline-flex items-center gap-1 rounded-full border border-border bg-white px-3 py-1.5 text-sm font-semibold text-ink-weak transition-colors hover:text-teal"
         >
           Ver todas <ArrowRight className="w-4 h-4"/>
         </Link>
@@ -39,7 +39,7 @@ export function StoreSection({ store, offers }: StoreSectionProps) {
           ))}
         </div>
       ) : (
-        <div className="rounded-2xl border border-dashed border-gray-200 bg-white px-4 py-8 text-sm text-gray-500">
+        <div className="rounded-2xl border border-dashed border-border bg-bg-card px-4 py-8 text-sm text-ink-weak">
           Aún no hay ofertas cargadas para este supermercado.
         </div>
       )}

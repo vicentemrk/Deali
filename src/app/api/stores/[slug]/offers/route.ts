@@ -28,7 +28,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
   try {
     const supabase = await createServerSupabaseClient();
     if (!supabase) {
-      return apiError('SUPABASE_INIT_FAILED', 'Supabase client initialization failed', 500);
+      return apiError('DB_NOT_CONFIGURED', 'Supabase client initialization failed', 503);
     }
 
     const result = await cached(
