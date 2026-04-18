@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { apiError } from '@/lib/apiError';
-import { exec } from 'child_process';
-import util from 'util';
-
-const execPromise = util.promisify(exec);
+import { spawn } from 'child_process';
 
 /**
  * POST /api/admin/scraper/trigger
@@ -29,25 +26,40 @@ const runningJobs = new Map<string, { startedAt: Date; status: string }>();
  */
 async function executeScraperInBackground(storeSlug?: string) {
   const jobId = `${Date.now()}-${storeSlug || 'all'}`;
-  const cmd = storeSlug ? `npx tsx scripts/scrapeAll.ts --store ${storeSlug}` : 'npx tsx scripts/scrapeAll.ts';
+  const args = storeSlug
+    ? ['tsx', 'scripts/scrapeAll.ts', '--store', storeSlug]
+    : ['tsx', 'scripts/scrapeAll.ts'];
 
   runningJobs.set(jobId, { startedAt: new Date(), status: 'running' });
 
-  // Don't await - let it run in background
-  execPromise(cmd)
-    .then(({ stdout, stderr }) => {
-      if (stderr) {
-        console.error(`[Scraper] Error for ${storeSlug || 'all'}:`, stderr);
-        runningJobs.set(jobId, { startedAt: new Date(), status: 'failed' });
-      } else {
-        console.log(`[Scraper] Completed for ${storeSlug || 'all'}`);
-        runningJobs.set(jobId, { startedAt: new Date(), status: 'completed' });
-      }
-    })
-    .catch((error) => {
-      console.error(`[Scraper] Execution error:`, error);
-      runningJobs.set(jobId, { startedAt: new Date(), status: 'error' });
-    });
+  // Run detached from request lifecycle without shell interpolation.
+  const child = spawn('npx', args, {
+    stdio: 'pipe',
+    shell: false,
+  });
+
+  let stderrBuffer = '';
+
+  child.stderr.on('data', (chunk) => {
+    const text = chunk.toString();
+    stderrBuffer += text;
+    console.error(`[Scraper] ${storeSlug || 'all'} stderr:`, text);
+  });
+
+  child.on('error', (error) => {
+    console.error(`[Scraper] Execution error:`, error);
+    runningJobs.set(jobId, { startedAt: new Date(), status: 'error' });
+  });
+
+  child.on('close', (code) => {
+    if (code === 0 && !stderrBuffer.trim()) {
+      console.log(`[Scraper] Completed for ${storeSlug || 'all'}`);
+      runningJobs.set(jobId, { startedAt: new Date(), status: 'completed' });
+      return;
+    }
+
+    runningJobs.set(jobId, { startedAt: new Date(), status: 'failed' });
+  });
 
   return jobId;
 }
@@ -83,7 +95,9 @@ export async function POST(req: NextRequest) {
     }
 
     // Validate store filter if provided
-    if (storeSlug && !VALID_STORES.includes(storeSlug)) {
+    const normalizedStore = storeSlug?.trim().toLowerCase();
+
+    if (normalizedStore && !VALID_STORES.includes(normalizedStore)) {
       return apiError(
         'INVALID_STORE',
         `Invalid store. Must be one of: ${VALID_STORES.join(', ')}`,
@@ -92,17 +106,17 @@ export async function POST(req: NextRequest) {
     }
 
     // Trigger scraper job in background (non-blocking)
-    const jobId = await executeScraperInBackground(storeSlug || undefined);
+    const jobId = await executeScraperInBackground(normalizedStore || undefined);
 
     // Return 202 Accepted immediately
     return NextResponse.json(
       {
         status: 'accepted',
         jobId,
-        message: storeSlug
-          ? `Scraper job started for ${storeSlug} store`
+        message: normalizedStore
+          ? `Scraper job started for ${normalizedStore} store`
           : 'Scraper job started for all stores',
-        store: storeSlug || null,
+        store: normalizedStore || null,
       },
       { status: 202 }
     );

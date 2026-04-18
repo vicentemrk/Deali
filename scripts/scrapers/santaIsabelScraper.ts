@@ -13,12 +13,21 @@ export class SantaIsabelScraper implements StoreScraper {
 
   async scrape(): Promise<RawOffer[]> {
     return fetchVtexMultiCategory({
-      cdnBase:      'https://santaisabel.vteximg.com.br',
-      siteBase:     'https://www.santaisabel.cl',
-      referer:      'https://www.santaisabel.cl/ofertas',
-      logTag:       'SantaIsabelScraper',
-      minProducts:  75,
-      concurrency:  3,
+      cdnBase: 'https://santaisabel.vteximg.com.br',
+      fallbackBases: ['https://www.santaisabel.cl'],
+      siteBase: 'https://www.santaisabel.cl',
+      referer: 'https://www.santaisabel.cl/ofertas',
+      logTag: 'SantaIsabelScraper',
+      minProducts: 80,
+      maxPages: 6,
+      pageSize: 50,
+      pageDelayMs: 400,
+      fqFilters: [
+        'fq=specificationFilter_40:Oferta',
+        'fq=specificationFilter_40:Si',
+        'fq=specificationFilter_193:Oferta',
+        '',
+      ],
     });
   }
 }

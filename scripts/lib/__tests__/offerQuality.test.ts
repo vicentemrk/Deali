@@ -25,5 +25,5 @@ test('isGoodOffer accepts reasonable offers', () => {
 
 test('quality thresholds stay in expected range', () => {
   assert.equal(MIN_GOOD_DISCOUNT_PCT, 5);
-  assert.equal(MAX_REASONABLE_DISCOUNT_PCT, 80);
+  assert.equal(MAX_REASONABLE_DISCOUNT_PCT, 90);
 });

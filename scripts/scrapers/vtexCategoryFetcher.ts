@@ -1,17 +1,12 @@
-import pLimit from 'p-limit';
 import { RawOffer } from './types';
 
 // ---------------------------------------------------------------------------
-// VTEX Paginated Fetcher
+// VTEX Paginated Fetcher — shared logic for Jumbo, Santa Isabel, Lider.
 //
-// Shared logic for all VTEX-based stores (Jumbo, Tottus, Santa Isabel, Lider).
-// Fetches products via broad paginated search sorted by best discount,
-// deduplicating by productName. The categoryMapper handles classification
-// based on the VTEX `categories` field in the response.
-//
-// Why not per-category fq filters? VTEX category tree IDs differ between
-// stores (Cencosud vs Falabella vs Walmart) — broad fetch + categoryMapper
-// is more reliable and works across all stores.
+// Core behavior:
+//   - Tries configurable fq filter strategies in order.
+//   - Fetches sequentially so early-exit works deterministically.
+//   - Logs raw vs discounted per page for fast diagnosis.
 // ---------------------------------------------------------------------------
 
 export interface VtexFetcherConfig {
@@ -27,14 +22,18 @@ export interface VtexFetcherConfig {
   referer: string;
   /** Scraper name for logging */
   logTag: string;
-  /** Minimum products target. Default: 75 */
+  /** Minimum products target. Default: 80 */
   minProducts?: number;
-  /** Max pages to fetch. Default: 6 (300 products scanned) */
+  /** Max pages per strategy. Default: 6 (300 products scanned) */
   maxPages?: number;
   /** Page size (VTEX max is 50). Default: 50 */
   pageSize?: number;
-  /** Max concurrent page fetches. Default: 3 */
+  /** Delay between pages to reduce throttling. Default: 300ms */
+  pageDelayMs?: number;
+  /** Compatibility option for callers that still pass concurrency. */
   concurrency?: number;
+  /** Filter strategies to try in order. */
+  fqFilters?: string[];
   /** Optional extra request headers, e.g. Cookie for anti-bot sessions */
   extraHeaders?: Record<string, string>;
 }
@@ -70,16 +69,18 @@ function bestImageUrl(item: any): string {
  */
 async function fetchPage(
   bases: string[],
+  fqFilter: string,
   from: number,
   to: number,
   referer: string,
   extraHeaders: Record<string, string> = {},
-  timeoutMs: number = 15_000
+  logTag: string,
+  timeoutMs: number = 18_000
 ): Promise<any[]> {
-  let lastError: Error | null = null;
+  const fqParam = fqFilter ? `&${fqFilter}` : '';
 
   for (const base of bases) {
-    const url = `${base}/api/catalog_system/pub/products/search?O=OrderByBestDiscountDESC&_from=${from}&_to=${to}`;
+    const url = `${base}/api/catalog_system/pub/products/search?O=OrderByBestDiscountDESC${fqParam}&_from=${from}&_to=${to}`;
 
     try {
       const response = await fetch(url, {
@@ -88,6 +89,7 @@ async function fetchPage(
           'User-Agent':
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
             '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+          'Accept-Language': 'es-CL,es;q=0.9',
           Referer: referer,
           ...extraHeaders,
         },
@@ -95,17 +97,23 @@ async function fetchPage(
       });
 
       if (!response.ok) {
-        lastError = new Error(`HTTP ${response.status} @ ${base}`);
+        console.warn(`[${logTag}] HTTP ${response.status} @ ${base} (filter: "${fqFilter || 'none'}")`);
         continue;
       }
 
-      return response.json();
+      const data = await response.json();
+      if (!Array.isArray(data)) {
+        console.warn(`[${logTag}] Non-array response from ${base}: ${typeof data}`);
+        continue;
+      }
+
+      return data;
     } catch (error: any) {
-      lastError = new Error(`${error.message} @ ${base}`);
+      console.warn(`[${logTag}] Fetch error @ ${base}: ${error.message}`);
     }
   }
 
-  throw lastError ?? new Error('Unknown VTEX fetch error');
+  return [];
 }
 
 /**
@@ -153,80 +161,116 @@ function parseProduct(
 }
 
 /**
- * Main entry point: fetches products via broad paginated search,
- * sorted by best discount. Deduplicates by productName.
- * Categories are resolved later by categoryMapper in scrapeAll.ts.
- *
- * Strategy:
- * 1. Fetch pages concurrently (p-limit controlled)
- * 2. Parse and dedup products
- * 3. Stop early once we hit minProducts or exhaust pages
+ * Runs one filter strategy across pages.
  */
+async function fetchWithFilter(
+  config: VtexFetcherConfig,
+  fqFilter: string,
+  baseCandidates: string[]
+): Promise<RawOffer[]> {
+  const maxPages = config.maxPages ?? 6;
+  const pageSize = config.pageSize ?? 50;
+  const minProducts = config.minProducts ?? 80;
+  const pageDelayMs = config.pageDelayMs ?? 300;
+  const seenNames = new Set<string>();
+  const allOffers: RawOffer[] = [];
+
+  console.log(
+    `[${config.logTag}] Strategy: filter="${fqFilter || 'none'}" | maxPages=${maxPages} | pageSize=${pageSize} | min=${minProducts}`
+  );
+
+  for (let page = 0; page < maxPages; page++) {
+    const from = page * pageSize;
+    const to = from + pageSize - 1;
+
+    const products = await fetchPage(
+      baseCandidates,
+      fqFilter,
+      from,
+      to,
+      config.referer,
+      config.extraHeaders ?? {},
+      config.logTag
+    );
+
+    if (!products.length) {
+      console.log(`[${config.logTag}] Page ${page + 1}: empty — end of results.`);
+      break;
+    }
+
+    let pageDiscounted = 0;
+    for (const product of products) {
+      try {
+        const offer = parseProduct(product, config, seenNames);
+        if (offer) {
+          allOffers.push(offer);
+          pageDiscounted++;
+        }
+      } catch {
+        // Skip malformed product
+      }
+    }
+
+    console.log(
+      `[${config.logTag}] Page ${page + 1}: ${products.length} raw → ${pageDiscounted} discounted (total: ${allOffers.length})`
+    );
+
+    if (allOffers.length >= minProducts) {
+      console.log(`[${config.logTag}] Reached minProducts (${minProducts}) — stopping early.`);
+      break;
+    }
+
+    if (page === 0 && pageDiscounted === 0) {
+      console.log(`[${config.logTag}] Page 1 returned 0 discounted products — filter may be wrong. Skipping strategy.`);
+      break;
+    }
+
+    if (page < maxPages - 1) {
+      await new Promise((resolve) => setTimeout(resolve, pageDelayMs));
+    }
+  }
+
+  return allOffers;
+}
+
 export async function fetchVtexMultiCategory(
   config: VtexFetcherConfig
 ): Promise<RawOffer[]> {
-  const minProducts = config.minProducts || 75;
-  const maxPages = config.maxPages || 6;
-  const pageSize = config.pageSize || 50;
-  const concurrency = config.concurrency || 3;
-  const limit = pLimit(concurrency);
-  const seenNames = new Set<string>();
-  const allOffers: RawOffer[] = [];
+  const minProducts = config.minProducts ?? 80;
   const baseCandidates = [
     config.cdnBase,
     ...(config.fallbackBases ?? []),
     config.siteBase,
   ];
 
-  console.log(`[${config.logTag}] Fetching up to ${maxPages} pages × ${pageSize} products (concurrency: ${concurrency})...`);
+  const fqFilters: string[] = config.fqFilters ?? [
+    'fq=specificationFilter_40:Oferta',
+    'fq=specificationFilter_40:Si',
+    'fq=specificationFilter_193:Oferta',
+    '',
+  ];
 
-  // Build page requests
-  const pageRequests = Array.from({ length: maxPages }, (_, i) => i);
+  for (const fqFilter of fqFilters) {
+    const offers = await fetchWithFilter(config, fqFilter, baseCandidates);
 
-  // Fetch pages with concurrency control
-  const results = await Promise.allSettled(
-    pageRequests.map((page) =>
-      limit(async () => {
-        // If we already have enough, skip
-        if (allOffers.length >= minProducts && page > 1) return [];
+    if (offers.length >= minProducts) {
+      console.log(`[${config.logTag}] ✅ Strategy "${fqFilter || 'broad'}" succeeded: ${offers.length} offers.`);
+      return offers;
+    }
 
-        const from = page * pageSize;
-        const to = from + pageSize - 1;
-
-        try {
-          const products = await fetchPage(baseCandidates, from, to, config.referer, config.extraHeaders ?? {});
-
-          if (!products.length) {
-            console.log(`[${config.logTag}] Reached end at page ${page} (${allOffers.length} total).`);
-            return [];
-          }
-
-          const pageOffers: RawOffer[] = [];
-          for (const product of products) {
-            try {
-              const offer = parseProduct(product, config, seenNames);
-              if (offer) pageOffers.push(offer);
-            } catch {
-              // Skip individual product parse errors
-            }
-          }
-
-          console.log(`[${config.logTag}] Page ${page + 1}: +${pageOffers.length} offers from ${products.length} products`);
-          return pageOffers;
-        } catch (error: any) {
-          console.warn(`[${config.logTag}] Page ${page + 1} fetch failed: ${error.message}`);
-          return [];
-        }
-      })
-    )
-  );
-
-  for (const result of results) {
-    if (result.status === 'fulfilled') {
-      allOffers.push(...result.value);
+    if (offers.length > 0) {
+      console.log(`[${config.logTag}] Strategy "${fqFilter || 'broad'}" returned only ${offers.length} — trying next...`);
     }
   }
 
-  console.log(`[${config.logTag}] ✅ Total: ${allOffers.length} offers.`);
-  return allOffers;
+  console.warn(`[${config.logTag}] ⚠ No strategy reached ${minProducts} products. Trying last resort...`);
+
+  const lastResort = await fetchWithFilter(
+    { ...config, minProducts: 1, maxPages: config.maxPages ?? 6 },
+    '',
+    baseCandidates
+  );
+
+  console.log(`[${config.logTag}] ✅ Last resort: ${lastResort.length} offers.`);
+  return lastResort;
 }

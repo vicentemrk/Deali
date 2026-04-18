@@ -330,6 +330,46 @@ async function runInBatches<T>(
   }
 }
 
+async function broadcastNewOffer(storeSlug: string, offer: RawOffer): Promise<void> {
+  try {
+    const channel = supabase.channel('new-offers');
+
+    const subscribed = await new Promise<boolean>((resolve) => {
+      const timeout = setTimeout(() => resolve(false), 2_000);
+      channel.subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          clearTimeout(timeout);
+          resolve(true);
+        }
+
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          clearTimeout(timeout);
+          resolve(false);
+        }
+      });
+    });
+
+    if (!subscribed) {
+      await supabase.removeChannel(channel);
+      return;
+    }
+
+    await channel.send({
+      type: 'broadcast',
+      event: 'new-offer',
+      payload: {
+        storeSlug,
+        productName: offer.productName,
+        offerPrice: offer.offerPrice,
+      },
+    });
+
+    await supabase.removeChannel(channel);
+  } catch (error) {
+    logEvent('warn', 'scrape.broadcast.failed', { storeSlug, error: String(error) });
+  }
+}
+
 // ---------------------------------------------------------------------------
 // MAIN
 // ---------------------------------------------------------------------------
@@ -419,6 +459,11 @@ async function main() {
       }
       offersSaved = await processOffers(storeId, scraper.storeSlug, offers, categorySlugMap);
 
+      const firstOffer = offers.find(isGoodOffer);
+      if (firstOffer) {
+        await broadcastNewOffer(scraper.storeSlug, firstOffer);
+      }
+
       const duration = Date.now() - startTime;
       await logScrapeRun(scraper.storeSlug, 'completed', {
         offers_found: offersFound,
@@ -469,6 +514,11 @@ async function main() {
         console.warn(`[${scraper.constructor.name}] 0 offers detected for ${scraper.storeSlug} — possible selector breakage`);
       }
       offersSaved = await processOffers(storeId, scraper.storeSlug, offers, categorySlugMap);
+
+      const firstOffer = offers.find(isGoodOffer);
+      if (firstOffer) {
+        await broadcastNewOffer(scraper.storeSlug, firstOffer);
+      }
       
       const duration = Date.now() - startTime;
       await logScrapeRun(scraper.storeSlug, 'completed', {
@@ -506,6 +556,7 @@ async function main() {
     invalidatePrefix('offers:list:'),
     invalidatePrefix('offers:store:'),
     invalidatePrefix('offers:detail:'),
+    invalidatePrefix('stores:list'),
   ]);
   logEvent('info', 'scrape.cache.invalidated');
 
