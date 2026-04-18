@@ -16,8 +16,8 @@ type PriceHistoryRow = {
 /**
  * GET request to fetch a single offer by ID, including price history.
  */
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
-  const offerId = params.id;
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id: offerId } = await params;
   
   if (!offerId) {
     return apiError('MISSING_ID', 'Missing offer ID', 400);
@@ -26,7 +26,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   const cacheKey = `offers:detail:${offerId}`;
 
   try {
-    const supabase = createServerSupabaseClient();
+    const supabase = await createServerSupabaseClient();
     if (!supabase) {
       return apiError('SUPABASE_INIT_FAILED', 'Supabase client initialization failed', 500);
     }

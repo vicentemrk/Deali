@@ -46,7 +46,7 @@ export function OfferCard({ offer }: OfferCardProps) {
   const offerUrl = offer.offer_url || offer.offerUrl || '#';
   const endDateValue = offer.end_date || offer.endDate || null;
   const hasKnownEndDate = Boolean(endDateValue) && !String(endDateValue).startsWith('9999');
-  const endDate = hasKnownEndDate ? new Date(endDateValue) : null;
+  const endDate = hasKnownEndDate && endDateValue ? new Date(endDateValue) : null;
   const now = new Date();
   const timeDiff = endDate ? endDate.getTime() - now.getTime() : Number.POSITIVE_INFINITY;
   const daysDiff = Math.ceil(timeDiff / (1000 * 3600 * 24));

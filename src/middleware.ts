@@ -22,7 +22,7 @@ function getClientIp(request: NextRequest): string {
     return forwardedFor.split(',')[0].trim();
   }
 
-  return request.ip || 'unknown';
+  return request.headers.get('x-real-ip') || 'unknown';
 }
 
 async function checkRateLimit(

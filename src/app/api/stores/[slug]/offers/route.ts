@@ -13,7 +13,8 @@ type OfferRow = {
 /**
  * GET offers filtered by store slug, with pagination.
  */
-export async function GET(req: NextRequest, { params }: { params: { slug: string } }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
   const { searchParams } = new URL(req.url);
   const page = parseInt(searchParams.get('page') || '1', 10);
   const limit = parseInt(searchParams.get('limit') || '20', 10);
@@ -22,10 +23,10 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
 
   const safeLimit = Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 100) : 20;
 
-  const cacheKey = `offers:store:${params.slug}:${JSON.stringify({ page, safeLimit, category, sort })}`;
+  const cacheKey = `offers:store:${slug}:${JSON.stringify({ page, safeLimit, category, sort })}`;
 
   try {
-    const supabase = createServerSupabaseClient();
+    const supabase = await createServerSupabaseClient();
     if (!supabase) {
       return apiError('SUPABASE_INIT_FAILED', 'Supabase client initialization failed', 500);
     }
@@ -36,7 +37,7 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
         let query = supabase
           .from('activa_offers_view')
           .select('*', { count: 'exact' })
-          .eq('store_slug', params.slug);
+          .eq('store_slug', slug);
 
         if (category) {
           query = query.eq('category_slug', category);

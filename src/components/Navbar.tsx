@@ -66,7 +66,7 @@ const HEADER_CATEGORIES = [
 ];
 
 export async function Navbar() {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   let dynamicCategories = CATEGORY_OPTIONS.map((cat) => ({
     id: cat.slug,

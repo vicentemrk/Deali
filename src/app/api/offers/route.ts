@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
   const cacheKey = `offers:list:${buildCacheKey({ page, limit: safeLimit, store, category, excludeCategory, q, sort })}`;
 
   try {
-    const supabase = createServerSupabaseClient();
+    const supabase = await createServerSupabaseClient();
     if (!supabase) {
       return apiError('DB_NOT_CONFIGURED', 'Supabase client initialization failed', 503);
     }

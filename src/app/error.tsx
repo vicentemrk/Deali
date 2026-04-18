@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect } from 'react';
 
 export default function GlobalErrorBoundary({
@@ -32,9 +33,9 @@ export default function GlobalErrorBoundary({
           >
             Reintentar
           </button>
-          <a href="/" className="bg-white px-4 py-2 rounded-lg border border-border text-gray-700 hover:bg-gray-50">
+          <Link href="/" className="bg-white px-4 py-2 rounded-lg border border-border text-gray-700 hover:bg-gray-50">
             Ir al inicio
-          </a>
+          </Link>
         </div>
       </div>
     </div>

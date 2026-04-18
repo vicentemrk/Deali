@@ -5,7 +5,7 @@ import { cookies } from 'next/headers';
 /**
  * Creates a configured Supabase client for Server Components and Route Handlers. Returns null if env vars missing.
  */
-export function createServerSupabaseClient() {
+export async function createServerSupabaseClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -31,7 +31,7 @@ export function createServerSupabaseClient() {
     return null;
   }
 
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
 
   return createServerClient(url, anonKey, {
     cookies: {

@@ -13,7 +13,7 @@ function getErrorMessage(error: unknown): string {
 }
 
 function isZodError(error: unknown): error is { name: string; message: string } {
-  return Boolean(error) && typeof error === 'object' && 'name' in error && (error as { name?: string }).name === 'ZodError';
+  return error !== null && typeof error === 'object' && 'name' in error && (error as { name?: string }).name === 'ZodError';
 }
 
 /**
@@ -22,7 +22,7 @@ function isZodError(error: unknown): error is { name: string; message: string } 
 export async function POST(req: NextRequest) {
   try {
     const body = createOfferSchema.parse(await req.json());
-    const supabase = createServerSupabaseClient();
+    const supabase = await createServerSupabaseClient();
     if (!supabase) {
       return apiError('SUPABASE_INIT_FAILED', 'Supabase client initialization failed', 500);
     }

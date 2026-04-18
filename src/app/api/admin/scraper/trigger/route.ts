@@ -77,7 +77,7 @@ async function executeScraperInBackground(storeSlug?: string) {
 export async function POST(req: NextRequest) {
   try {
     // Auth is checked by middleware, but we double-check here
-    const supabase = createServerSupabaseClient();
+    const supabase = await createServerSupabaseClient();
     if (!supabase) {
       return apiError('SUPABASE_INIT_FAILED', 'Supabase client initialization failed', 500);
     }
@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
     if (!storeSlug) {
       try {
         const body = (await req.json()) as { storeSlug?: string; store?: string };
-        storeSlug = body.storeSlug || body.store;
+        storeSlug = body.storeSlug ?? body.store ?? null;
       } catch {
         // No body or invalid JSON, continue
       }
@@ -140,7 +140,7 @@ export async function GET(req: NextRequest) {
   try {
     void req;
     // Auth is checked by middleware
-    const supabase = createServerSupabaseClient();
+    const supabase = await createServerSupabaseClient();
     if (!supabase) {
       return apiError('SUPABASE_INIT_FAILED', 'Supabase client initialization failed', 500);
     }

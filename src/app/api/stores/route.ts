@@ -27,7 +27,7 @@ type OfferCountRow = {
  */
 export async function GET() {
   try {
-    const supabase = createServerSupabaseClient();
+    const supabase = await createServerSupabaseClient();
     if (!supabase) {
       return apiError('DB_NOT_CONFIGURED', 'Supabase client initialization failed', 503);
     }
@@ -57,11 +57,11 @@ export async function GET() {
             .select('store_slug');
           
           const countsMap: Record<string, number> = ((countsFallback || []) as Array<{ store_slug: string }>).reduce(
-            (acc, offer) => {
+            (acc: Record<string, number>, offer) => {
               acc[offer.store_slug] = (acc[offer.store_slug] || 0) + 1;
               return acc;
             },
-            {}
+            {} as Record<string, number>
           );
 
           return ((stores || []) as StoreRow[]).map((store) => ({
@@ -72,11 +72,11 @@ export async function GET() {
 
         // Map RPC results: { store_slug, count } → { slug, active_offers_count }
         const countsMap: Record<string, number> = ((countsData || []) as OfferCountRow[]).reduce(
-          (acc, item) => {
+          (acc: Record<string, number>, item) => {
             acc[item.store_slug] = item.count || 0;
             return acc;
           },
-          {}
+          {} as Record<string, number>
         );
 
         return ((stores || []) as StoreRow[]).map((store) => ({

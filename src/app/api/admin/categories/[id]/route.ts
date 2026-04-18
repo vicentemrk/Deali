@@ -13,17 +13,17 @@ function getErrorMessage(error: unknown): string {
 }
 
 function isZodError(error: unknown): error is { name: string; message: string } {
-  return Boolean(error) && typeof error === 'object' && 'name' in error && (error as { name?: string }).name === 'ZodError';
+  return error !== null && typeof error === 'object' && 'name' in error && (error as { name?: string }).name === 'ZodError';
 }
 
 /**
  * PUT request to update a category.
  */
-export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const categoryId = params.id;
+    const { id: categoryId } = await params;
     const body = updateCategorySchema.parse(await req.json());
-    const supabase = createServerSupabaseClient();
+    const supabase = await createServerSupabaseClient();
     if (!supabase) {
       return apiError('SUPABASE_INIT_FAILED', 'Supabase client initialization failed', 500);
     }
@@ -55,11 +55,11 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 /**
  * DELETE request to delete a category.
  */
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     void req;
-    const categoryId = params.id;
-    const supabase = createServerSupabaseClient();
+    const { id: categoryId } = await params;
+    const supabase = await createServerSupabaseClient();
     if (!supabase) {
       return apiError('SUPABASE_INIT_FAILED', 'Supabase client initialization failed', 500);
     }

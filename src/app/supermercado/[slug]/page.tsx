@@ -3,9 +3,9 @@ import { OfferCard } from '@/components/OfferCard';
 import { Footer } from '@/components/Footer';
 import { CATEGORY_OPTIONS, SORT_OPTIONS } from '@/lib/catalog';
 import Link from 'next/link';
+import { fetchJson, type OfferCardData, type PagedOffersResponse } from '@/lib/siteData';
 
 export const revalidate = 1800; // ISR: regenera la página cada 30 min desde CDN
-
 
 interface PageProps {
   params: { slug: string };
@@ -17,18 +17,8 @@ export async function generateMetadata({ params }: PageProps) {
   return {
     title: `Ofertas en ${storeName} | Deali`,
     description: `Encuentra las mejores ofertas de ${storeName} actualizadas en tiempo real.`,
-  }
+  };
 }
-
-type StoreOffer = {
-  offer_id: string;
-  [key: string]: unknown;
-};
-
-type StoreResponse = {
-  data: StoreOffer[];
-  total: number;
-};
 
 export default async function SupermercadoPage({ params, searchParams }: PageProps) {
   const page = searchParams.page || '1';
@@ -40,15 +30,9 @@ export default async function SupermercadoPage({ params, searchParams }: PagePro
   const query = new URLSearchParams({ page, limit: String(pageSize), sort });
   if (category) query.set('category', category);
   
-  const res = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/stores/${params.slug}/offers?${query.toString()}`, { next: { revalidate: 1800 } });
-  
-    let offers: StoreOffer[] = [];
-    let total = 0;
-  if (res.ok) {
-    const data = (await res.json()) as StoreResponse;
-    offers = data.data;
-    total = data.total || 0;
-  }
+  const data = await fetchJson<PagedOffersResponse>(`/api/stores/${params.slug}/offers?${query.toString()}`, { next: { revalidate: 1800 } });
+  const offers: OfferCardData[] = data?.data || [];
+  const total = data?.total || 0;
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const hasPrev = pageNumber > 1;

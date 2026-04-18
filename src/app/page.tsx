@@ -5,38 +5,11 @@ import { PromotionBanner } from '@/components/PromotionBanner';
 import { Footer } from '@/components/Footer';
 import Link from 'next/link';
 import { ALCOHOL_CATEGORY_SLUG, PRIMARY_CATEGORIES } from '@/lib/catalog';
+import { fetchJson, type OfferCardData, type PromotionSummary, type StoreSummary, type PagedOffersResponse } from '@/lib/siteData';
 
-type StoreSummary = {
-  id: string;
-  name: string;
-  slug: string;
-  color_hex: string;
-  website_url: string;
-  active_offers_count: number;
-};
-
-type OfferSummary = {
-  offer_id: string;
+type OfferSummary = OfferCardData & {
   store_slug: string;
   category_slug: string | null;
-};
-
-type PromotionSummary = {
-  id: string;
-  title: string;
-  description?: string;
-  image_url?: string;
-  store: {
-    name: string;
-    color_hex: string;
-    website_url: string;
-  };
-};
-
-type OffersResponse = {
-  data: OfferSummary[];
-  total: number;
-  page: number;
 };
 
 const DEMO_STORES: StoreSummary[] = [
@@ -50,32 +23,20 @@ const DEMO_STORES: StoreSummary[] = [
 
 const PRIMARY_STORE_ORDER = ['jumbo', 'lider', 'unimarc', 'tottus', 'santa-isabel', 'acuenta'];
 
-async function safeFetch<T>(url: string): Promise<T | null> {
-  try {
-    const res = await fetch(url, { cache: 'no-store' });
-    if (!res.ok) return null;
-    return (await res.json()) as T;
-  } catch {
-    return null;
-  }
-}
-
 export default async function HomePage() {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-  
   const [offersData, stores, promotions] = await Promise.all([
-    safeFetch<OffersResponse>(`${baseUrl}/api/offers?limit=1000&excludeCategory=${ALCOHOL_CATEGORY_SLUG}`),
-    safeFetch<StoreSummary[]>(`${baseUrl}/api/stores`),
-    safeFetch<PromotionSummary[]>(`${baseUrl}/api/promotions`),
+    fetchJson<PagedOffersResponse>(`/api/offers?limit=1000&excludeCategory=${ALCOHOL_CATEGORY_SLUG}`, { cache: 'no-store' }),
+    fetchJson<StoreSummary[]>(`/api/stores`, { cache: 'no-store' }),
+    fetchJson<PromotionSummary[]>(`/api/promotions`, { cache: 'no-store' }),
   ]);
 
   const activeStores = stores || DEMO_STORES;
-  const activeOffers = offersData?.data || [];
+  const activeOffers = (offersData?.data || []) as OfferSummary[];
   const activePromotions = promotions || [];
   const orderedStores = activeStores.map((store) => ({
     ...store,
     offers: activeOffers
-      .filter((offer: OfferSummary) => offer.store_slug === store.slug && offer.category_slug !== ALCOHOL_CATEGORY_SLUG)
+      .filter((offer) => offer.store_slug === store.slug && offer.category_slug !== ALCOHOL_CATEGORY_SLUG)
       .slice(0, 5),
   }));
   const sortedStores = orderedStores

@@ -225,7 +225,7 @@ export default function AdminPage() {
       if (!res.ok) throw new Error(data.message);
 
       setRunState(prev => ({ ...prev, [storeSlug]: 'success' }));
-      setLogs(prev => ({ ...prev, [storeSlug]: data.log || data.message }));
+      setLogs(prev => ({ ...prev, [storeSlug]: data.log || data.message || 'Scraper ejecutado' }));
     } catch (error: unknown) {
       setRunState(prev => ({ ...prev, [storeSlug]: 'error' }));
       setLogs(prev => ({ ...prev, [storeSlug]: getErrorMessage(error, 'Error desconocido') }));

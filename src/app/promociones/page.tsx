@@ -1,18 +1,9 @@
 import React from 'react';
 import { PromotionBanner } from '@/components/PromotionBanner';
 import { Footer } from '@/components/Footer';
+import { fetchJson, type PromotionSummary } from '@/lib/siteData';
 
-type Promotion = {
-  id: string;
-  title: string;
-  description?: string;
-  image_url?: string;
-  store: {
-    name: string;
-    color_hex: string;
-    website_url: string;
-  };
-};
+export const dynamic = 'force-dynamic';
 
 export const metadata = {
   title: 'Promociones Bancarias y Ofertas | Deali',
@@ -20,12 +11,7 @@ export const metadata = {
 };
 
 export default async function PromocionesPage() {
-  const res = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/promotions`, { next: { revalidate: 3600 } });
-  
-  let promotions: Promotion[] = [];
-  if (res.ok) {
-    promotions = (await res.json()) as Promotion[];
-  }
+  const promotions = (await fetchJson<PromotionSummary[]>(`/api/promotions`, { next: { revalidate: 3600 } })) || [];
 
   return (
     <div className="min-h-screen bg-bg-page font-sans text-gray-900 flex flex-col">

@@ -3,16 +3,7 @@ import { OfferCard } from '@/components/OfferCard';
 import { Footer } from '@/components/Footer';
 import Link from 'next/link';
 import { SORT_OPTIONS } from '@/lib/catalog';
-
-type CategoryOffer = {
-  offer_id: string;
-  [key: string]: unknown;
-};
-
-type CategoryResponse = {
-  data: CategoryOffer[];
-  total: number;
-};
+import { fetchJson, type OfferCardData, type PagedOffersResponse } from '@/lib/siteData';
 
 interface PageProps {
   params: { slug: string };
@@ -33,15 +24,9 @@ export default async function CategoryPage({ params, searchParams }: PageProps) 
   const pageNumber = Math.max(1, Number.parseInt(page, 10) || 1);
   const pageSize = 20;
   
-  const res = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/offers?category=${params.slug}&page=${page}&limit=${pageSize}&sort=${sort}`, { next: { revalidate: 1800 } });
-  
-    let offers: CategoryOffer[] = [];
-    let total = 0;
-  if (res.ok) {
-    const data = (await res.json()) as CategoryResponse;
-    offers = data.data;
-    total = data.total || 0;
-  }
+  const data = await fetchJson<PagedOffersResponse>(`/api/offers?category=${params.slug}&page=${page}&limit=${pageSize}&sort=${sort}`, { next: { revalidate: 1800 } });
+  const offers: OfferCardData[] = data?.data || [];
+  const total = data?.total || 0;
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const hasPrev = pageNumber > 1;

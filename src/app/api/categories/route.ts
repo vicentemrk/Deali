@@ -29,7 +29,7 @@ function buildTree(categories: CategoryRow[], parentId: string | null = null): C
  */
 export async function GET() {
   try {
-    const supabase = createServerSupabaseClient();
+    const supabase = await createServerSupabaseClient();
     if (!supabase) {
       return apiError('SUPABASE_INIT_FAILED', 'Supabase client initialization failed', 500);
     }
