@@ -23,7 +23,7 @@ export default async function CategoryPage({ params, searchParams }: PageProps) 
   const pageNumber = Math.max(1, Number.parseInt(page, 10) || 1);
   const pageSize = 20;
   
-  const res = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/offers?category=${params.slug}&page=${page}&sort=${sort}`, { next: { revalidate: 1800 } });
+  const res = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/offers?category=${params.slug}&page=${page}&limit=${pageSize}&sort=${sort}`, { next: { revalidate: 1800 } });
   
     let offers = [];
     let total = 0;
@@ -69,7 +69,7 @@ export default async function CategoryPage({ params, searchParams }: PageProps) 
           <p className="text-gray-500">No hay ofertas disponibles en esta categoría.</p>
         ) : (
           <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
               {offers.map((offer: any) => (
                 <OfferCard key={offer.offer_id} offer={offer} />
               ))}

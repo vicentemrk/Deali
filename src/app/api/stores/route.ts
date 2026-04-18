@@ -10,7 +10,7 @@ export async function GET() {
   try {
     const supabase = createServerSupabaseClient();
     if (!supabase) {
-      return apiError('SUPABASE_INIT_FAILED', 'Supabase client initialization failed', 500);
+      return apiError('DB_NOT_CONFIGURED', 'Supabase client initialization failed', 503);
     }
 
     const result = await cached(
@@ -23,19 +23,16 @@ export async function GET() {
 
         if (storesError) throw storesError;
 
-        const countPairs = await Promise.all(
-          (stores || []).map(async (store: any) => {
-            const { count, error } = await supabase
-              .from('activa_offers_view')
-              .select('*', { count: 'exact', head: true })
-              .eq('store_slug', store.slug);
+        const { data: countsData, error: countsError } = await supabase
+          .from('activa_offers_view')
+          .select('store_slug,offer_id', { count: 'exact' });
 
-            if (error) throw error;
-            return [store.slug, count || 0] as const;
-          })
-        );
+        if (countsError) throw countsError;
 
-        const countsMap = Object.fromEntries(countPairs);
+        const countsMap = (countsData || []).reduce<Record<string, number>>((acc, offer) => {
+          acc[offer.store_slug] = (acc[offer.store_slug] || 0) + 1;
+          return acc;
+        }, {});
 
         return stores.map((store: any) => ({
           ...store,

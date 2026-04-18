@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Ejecuta localmente si no estamos en Vercel
-    const { stdout, stderr } = await execPromise(`npx ts-node scripts/scrapeAll.ts --store ${storeSlug}`);
+    const { stdout, stderr } = await execPromise(`npx tsx scripts/scrapeAll.ts --store ${storeSlug}`);
     
     if (stderr) {
        console.error(`[Scraper API Error] ${stderr}`);

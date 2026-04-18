@@ -6,7 +6,14 @@ interface OfferCardProps {
 
 export function OfferCard({ offer }: OfferCardProps) {
   const productName = offer.product_name || offer.productName || 'Producto sin nombre';
-  const productImageUrl = offer.product_image_url || offer.image_url || offer.imageUrl || '';
+  const productImageUrl =
+    offer.product_image_url ||
+    offer.productImageUrl ||
+    offer.image_url ||
+    offer.imageUrl ||
+    offer.thumbnail_url ||
+    offer.thumbnailUrl ||
+    '';
   const categoryName = offer.category_name || offer.categoryName || 'General';
   const originalPrice = Number(offer.original_price ?? offer.originalPrice ?? 0);
   const offerPrice = Number(offer.offer_price ?? offer.offerPrice ?? 0);
@@ -28,7 +35,7 @@ export function OfferCard({ offer }: OfferCardProps) {
     .toUpperCase();
 
   return (
-    <div className="group relative flex flex-col bg-[#F0FDFA] rounded-3xl p-5 hover:-translate-y-2 transition-all duration-300 shadow-[0_4px_20px_-4px_rgba(13,148,136,0.1)] hover:shadow-[0_15px_30px_-8px_rgba(13,148,136,0.2)] border border-teal/10 overflow-hidden">
+    <div className="group relative flex h-full flex-col overflow-hidden rounded-3xl border border-teal/10 bg-[#F0FDFA] p-4 shadow-[0_4px_20px_-4px_rgba(13,148,136,0.1)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_15px_30px_-8px_rgba(13,148,136,0.2)] sm:p-5">
       
       {/* Decorative background glow on hover */}
       <div className="absolute -inset-4 bg-gradient-to-br from-teal-light via-[#F0EEFF] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-2xl z-0 pointer-events-none" />
@@ -47,7 +54,7 @@ export function OfferCard({ offer }: OfferCardProps) {
       )}
 
       {/* Image Area */}
-      <div className="relative w-full h-44 mt-12 mb-4 z-10 group-hover:scale-110 transition-transform duration-500 ease-out rounded-2xl overflow-hidden bg-white/60 border border-white/70">
+      <div className="relative z-10 mt-10 mb-3 h-36 w-full overflow-hidden rounded-2xl border border-white/70 bg-white/60 transition-transform duration-500 ease-out group-hover:scale-[1.03] sm:mt-12 sm:h-40">
         {productImageUrl ? (
           <img
             src={productImageUrl}
@@ -57,40 +64,53 @@ export function OfferCard({ offer }: OfferCardProps) {
             referrerPolicy="no-referrer"
           />
         ) : (
-          <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-teal-light via-white to-[#F0EEFF] text-5xl font-black text-teal/30">
-            {initials || 'DA'}
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-teal-light via-white to-[#F0EEFF]">
+            {/* Product Icon - More Elegant */}
+            <svg
+              className="w-20 h-20 text-teal/35 mb-3"
+              fill="currentColor"
+              viewBox="0 0 24 24"
+            >
+              {/* Cylinder/Product Container */}
+              <circle cx="12" cy="6" r="3.5" opacity="0.8" />
+              <path d="M 8.5 6 L 8 16 C 8 18.2 9.8 20 12 20 C 14.2 20 16 18.2 16 16 L 15.5 6" opacity="0.9" />
+              <circle cx="12" cy="16" r="3.5" opacity="0.7" />
+            </svg>
+            <span className="text-xs font-semibold text-teal/40 text-center px-3 leading-tight">
+              {initials || 'PRODUCTO'}
+            </span>
           </div>
         )}
       </div>
 
       <div className="flex flex-col flex-grow z-10 mt-2">
         {/* Category */}
-        <span className="inline-block px-2 py-0.5 bg-[#F0EEFF] text-purple text-[10px] font-bold uppercase tracking-widest rounded-md w-max mb-2">
+        <span className="mb-2 inline-block w-max rounded-md bg-[#F0EEFF] px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-purple">
           {categoryName}
         </span>
 
         {/* Title */}
-        <h3 className="text-[15px] font-bold text-footer leading-snug mb-2 line-clamp-2 group-hover:text-teal transition-colors duration-200">
+        <h3 className="mb-2 line-clamp-2 text-[14px] font-bold leading-snug text-footer transition-colors duration-200 group-hover:text-teal sm:text-[15px]">
           {productName}
         </h3>
 
         <div className="flex-grow" />
 
         {/* Pricing */}
-        <div className="flex items-end gap-2 mt-4 mb-5">
-          <span className="text-3xl font-black text-teal tracking-tighter">
+        <div className="mt-3 mb-4 flex items-end gap-2">
+          <span className="text-2xl font-black tracking-tighter text-teal sm:text-3xl">
             ${offerPrice.toLocaleString('es-CL')}
           </span>
           {originalPrice > offerPrice && (
-            <span className="text-sm font-semibold text-gray-500 line-through mb-1">
+            <span className="mb-1 text-sm font-semibold text-gray-500 line-through">
                ${originalPrice.toLocaleString('es-CL')}
             </span>
           )}
         </div>
 
         {/* Action Row */}
-        <div className="flex items-center justify-between border-t border-teal/10 pt-4">
-          <div className="text-xs font-bold text-gray-600 bg-teal-light/60 px-3 py-2 rounded-lg border border-teal/10 shadow-sm">
+        <div className="flex items-center justify-between gap-3 border-t border-teal/10 pt-3">
+          <div className="rounded-lg border border-teal/10 bg-teal-light/60 px-2.5 py-2 text-[11px] font-bold text-gray-600 shadow-sm sm:px-3 sm:text-xs">
             {endDate
               ? `Hasta ${endDate.toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}`
               : 'Vigencia indefinida'}
@@ -100,7 +120,7 @@ export function OfferCard({ offer }: OfferCardProps) {
             href={offerUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="group/btn flex items-center gap-2 bg-purple text-white text-xs font-bold px-4 py-2.5 rounded-xl hover:bg-opacity-90 transition-all shadow-md hover:shadow-lg hover:shadow-purple/30"
+            className="group/btn inline-flex items-center gap-2 rounded-xl bg-purple px-4 py-2.5 text-xs font-bold text-white shadow-md transition-all hover:bg-opacity-90 hover:shadow-lg hover:shadow-purple/30"
           >
             Ver Oferta
             <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 transform group-hover/btn:translate-x-0.5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>

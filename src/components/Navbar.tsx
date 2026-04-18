@@ -79,9 +79,20 @@ export async function Navbar() {
     const parsed = (data || []) as DbCategory[];
     if (parsed.length > 0) {
       const built = buildHeaderCategories(parsed);
-      dynamicCategories = built.length > 0
-        ? built
-        : parsed.map((cat) => ({ id: cat.id, name: cat.name, slug: cat.slug }));
+      const supportedSlugs = new Set(CATEGORY_OPTIONS.map((cat) => cat.slug));
+      const filteredBuilt = built
+        .filter((category) => supportedSlugs.has(category.slug))
+        .map((category) => ({
+          ...category,
+          children: (category.children || []).filter((child) => supportedSlugs.has(child.slug)),
+        }))
+        .filter((category) => category.children.length > 0 || supportedSlugs.has(category.slug));
+
+      dynamicCategories = filteredBuilt.length > 0
+        ? filteredBuilt
+        : parsed
+            .filter((cat) => supportedSlugs.has(cat.slug))
+            .map((cat) => ({ id: cat.id, name: cat.name, slug: cat.slug }));
     }
   }
 

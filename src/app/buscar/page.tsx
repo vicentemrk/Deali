@@ -23,7 +23,7 @@ export default async function BuscarPage({ searchParams }: PageProps) {
   
   // Note: For a real production app, we would ideally have a /api/search endpoint.
   // We'll reuse the offers endpoint but pass 'q' as an argument.
-  const res = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/offers?q=${encodeURIComponent(query)}&page=${page}`, { next: { revalidate: 300 } });
+  const res = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/offers?q=${encodeURIComponent(query)}&page=${page}&limit=${pageSize}`, { next: { revalidate: 300 } });
   
     let offers = [];
     let total = 0;
@@ -59,7 +59,7 @@ export default async function BuscarPage({ searchParams }: PageProps) {
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
               {offers.map((offer: any) => (
                 <OfferCard key={offer.offer_id} offer={offer} />
               ))}

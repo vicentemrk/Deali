@@ -3,6 +3,13 @@ import { cached } from '@/lib/cache';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { apiError } from '@/lib/apiError';
 
+function buildCacheKey(parts: Record<string, string | number | null | undefined>) {
+  return Object.entries(parts)
+    .filter(([, value]) => value !== null && value !== undefined && value !== '')
+    .map(([key, value]) => `${key}=${encodeURIComponent(String(value))}`)
+    .join('&');
+}
+
 /**
  * GET requests to fetch offers using query parameters for filtering and pagination.
  */
@@ -16,15 +23,15 @@ export async function GET(req: NextRequest) {
   const q = searchParams.get('q');
   const sort = searchParams.get('sort') || 'discount_desc';
 
-  const safeLimit = Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 100) : 20;
+  const safeLimit = Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 1000) : 20;
 
   // Create hash params for cache key
-  const cacheKey = `offers:list:${JSON.stringify({ page, safeLimit, store, category, excludeCategory, q, sort })}`;
+  const cacheKey = `offers:list:${buildCacheKey({ page, limit: safeLimit, store, category, excludeCategory, q, sort })}`;
 
   try {
     const supabase = createServerSupabaseClient();
     if (!supabase) {
-      return apiError('SUPABASE_INIT_FAILED', 'Supabase client initialization failed', 500);
+      return apiError('DB_NOT_CONFIGURED', 'Supabase client initialization failed', 503);
     }
 
     const result = await cached(

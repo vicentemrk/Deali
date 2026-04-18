@@ -76,6 +76,15 @@ function selectOffersForScrape(rawOffers: RawOffer[]): RawOffer[] {
   return selected.slice(0, SCRAPE_LIMIT);
 }
 
+function normalizeOfferKey(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ');
+}
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -115,7 +124,7 @@ async function processOffers(
   if (fetchErr) throw new Error(`[${storeSlug}] Failed to fetch products: ${fetchErr.message}`);
 
   const productMap = new Map<string, { id: string; category_id: string | null }>(
-    (existingProducts ?? []).map((p) => [p.name.trim().toLowerCase(), { id: p.id, category_id: p.category_id }])
+    (existingProducts ?? []).map((p) => [normalizeOfferKey(p.name), { id: p.id, category_id: p.category_id }])
   );
 
   // ── Step 2: Split new vs existing products ─────────────────────────────
@@ -123,7 +132,7 @@ async function processOffers(
   const existing: { id: string; offer: RawOffer }[] = [];
 
   for (const offer of targetOffers) {
-    const key = offer.productName.trim().toLowerCase();
+    const key = normalizeOfferKey(offer.productName);
     const existingProduct = productMap.get(key);
     if (existingProduct) {
       existing.push({ id: existingProduct.id, offer });
@@ -210,9 +219,7 @@ async function processOffers(
     ...existing,
     ...newProductIds.map((p) => ({
       id: p.id,
-      offer: toInsert.find(
-        (o) => o.productName.trim().toLowerCase() === p.name.trim().toLowerCase()
-      )!,
+      offer: toInsert.find((o) => normalizeOfferKey(o.productName) === normalizeOfferKey(p.name))!,
     })),
   ].filter((x) => x.offer != null);
 
@@ -223,6 +230,7 @@ async function processOffers(
   const endDateStr = '9999-12-31';
 
   // ── Step 4: Batch upsert offers (1 query) ─────────────────────────────
+  // onConflict = product_id assumes one active offer row per product.
   const offersPayload = allProductIds.map(({ id: productId, offer }) => {
     const discountPct = calculateDiscountPct(offer.offerPrice, offer.originalPrice).toFixed(2);
     return {
@@ -380,11 +388,65 @@ async function main() {
   let successCount = 0;
   let failCount    = 0;
 
-  // Los scrapers API (Jumbo, Líder, SantaIsabel) son ligeros — pueden correr en batch de 3.
-  // Los de Playwright consumen ~400-600MB RAM cada uno — max 2 simultáneos.
-  // Orden en el array: primero los 3 de API, luego los 3 de Playwright.
-  // runInBatches(×, 2) ya garantiza el límite.
-  await runInBatches(targetScrapers, 2, async (scraper) => {
+  const apiScrapers = targetScrapers.filter((scraper) =>
+    ['jumbo', 'lider', 'santa-isabel'].includes(scraper.storeSlug)
+  );
+  const playwrightScrapers = targetScrapers.filter((scraper) =>
+    !['jumbo', 'lider', 'santa-isabel'].includes(scraper.storeSlug)
+  );
+
+  await runInBatches(apiScrapers, 3, async (scraper) => {
+    const storeId = storeIdMap.get(scraper.storeSlug);
+    if (!storeId) {
+      logEvent('error', 'scrape.store.missing', { storeSlug: scraper.storeSlug });
+      failCount++;
+      return;
+    }
+
+    const startTime = Date.now();
+    let offersFound = 0;
+    let offersSaved = 0;
+    let errorMsg: string | undefined;
+
+    try {
+      logEvent('info', 'scrape.store.start', { storeSlug: scraper.storeSlug });
+      await logScrapeRun(scraper.storeSlug, 'started', {});
+
+      const offers = await scraper.scrape();
+      offersFound = offers.length;
+      if (offers.length === 0) {
+        console.warn(`[${scraper.constructor.name}] 0 offers detected for ${scraper.storeSlug} — possible selector breakage`);
+      }
+      offersSaved = await processOffers(storeId, scraper.storeSlug, offers, categorySlugMap);
+
+      const duration = Date.now() - startTime;
+      await logScrapeRun(scraper.storeSlug, 'completed', {
+        offers_found: offersFound,
+        offers_saved: offersSaved,
+        duration_ms: duration,
+      });
+
+      successCount++;
+    } catch (err: any) {
+      failCount++;
+      errorMsg = err.message || String(err);
+      const duration = Date.now() - startTime;
+      logEvent('error', 'scrape.store.failed', {
+        storeSlug: scraper.storeSlug,
+        error: errorMsg,
+        durationMs: duration,
+      });
+
+      await logScrapeRun(scraper.storeSlug, 'failed', {
+        offers_found: offersFound,
+        offers_saved: offersSaved,
+        error: errorMsg,
+        duration_ms: duration,
+      });
+    }
+  });
+
+  await runInBatches(playwrightScrapers, 2, async (scraper) => {
     const storeId = storeIdMap.get(scraper.storeSlug);
     if (!storeId) {
       logEvent('error', 'scrape.store.missing', { storeSlug: scraper.storeSlug });
@@ -403,6 +465,9 @@ async function main() {
       
       const offers = await scraper.scrape();
       offersFound = offers.length;
+      if (offers.length === 0) {
+        console.warn(`[${scraper.constructor.name}] 0 offers detected for ${scraper.storeSlug} — possible selector breakage`);
+      }
       offersSaved = await processOffers(storeId, scraper.storeSlug, offers, categorySlugMap);
       
       const duration = Date.now() - startTime;

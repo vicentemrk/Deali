@@ -28,12 +28,12 @@ export default async function SupermercadoPage({ params, searchParams }: PagePro
   const pageNumber = Math.max(1, Number.parseInt(page, 10) || 1);
   const pageSize = 20;
 
-  const query = new URLSearchParams({ page, sort });
+  const query = new URLSearchParams({ page, limit: String(pageSize), sort });
   if (category) query.set('category', category);
   
   const res = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/stores/${params.slug}/offers?${query.toString()}`, { next: { revalidate: 1800 } });
   
-    let offers = [];
+    let offers: any[] = [];
     let total = 0;
   if (res.ok) {
      const data = await res.json();
@@ -92,7 +92,7 @@ export default async function SupermercadoPage({ params, searchParams }: PagePro
           <p className="text-gray-500">No hay ofertas activas en esta tienda.</p>
         ) : (
           <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
               {offers.map((offer: any) => (
                 <OfferCard key={offer.offer_id} offer={offer} />
               ))}

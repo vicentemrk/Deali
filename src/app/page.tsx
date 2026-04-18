@@ -4,25 +4,27 @@ import { StoreSection } from '@/components/StoreSection';
 import { PromotionBanner } from '@/components/PromotionBanner';
 import { Footer } from '@/components/Footer';
 import Link from 'next/link';
-import { ALCOHOL_CATEGORY_SLUG, CATEGORY_OPTIONS, PRIMARY_CATEGORIES } from '@/lib/catalog';
+import { ALCOHOL_CATEGORY_SLUG, PRIMARY_CATEGORIES } from '@/lib/catalog';
 
 const STORE_COLORS: Record<string, string> = {
-  jumbo: '#0D9488',
-  lider: '#7E6BC4',
+  jumbo: '#00AA44',
+  lider: '#003D82',
   unimarc: '#DC2626',
-  acuenta: '#BA7517',
+  acuenta: '#FF8C00',
   tottus: '#00843D',
-  'santa-isabel': '#E91E63',
+  'santa-isabel': '#E63946',
 };
 
 const DEMO_STORES = [
-  { id: '1', name: 'Jumbo', slug: 'jumbo', color_hex: '#0D9488', website_url: 'https://www.jumbo.cl', active_offers_count: 0 },
-  { id: '2', name: 'Líder', slug: 'lider', color_hex: '#7E6BC4', website_url: 'https://www.lider.cl', active_offers_count: 0 },
+  { id: '1', name: 'Jumbo', slug: 'jumbo', color_hex: '#00AA44', website_url: 'https://www.jumbo.cl', active_offers_count: 0 },
+  { id: '2', name: 'Líder', slug: 'lider', color_hex: '#003D82', website_url: 'https://www.lider.cl', active_offers_count: 0 },
   { id: '3', name: 'Unimarc', slug: 'unimarc', color_hex: '#DC2626', website_url: 'https://www.unimarc.cl', active_offers_count: 0 },
-  { id: '4', name: 'aCuenta', slug: 'acuenta', color_hex: '#BA7517', website_url: 'https://www.acuenta.cl', active_offers_count: 0 },
+  { id: '4', name: 'aCuenta', slug: 'acuenta', color_hex: '#FF8C00', website_url: 'https://www.acuenta.cl', active_offers_count: 0 },
   { id: '5', name: 'Tottus', slug: 'tottus', color_hex: '#00843D', website_url: 'https://www.tottus.cl', active_offers_count: 0 },
-  { id: '6', name: 'Santa Isabel', slug: 'santa-isabel', color_hex: '#E91E63', website_url: 'https://www.santaisabel.cl', active_offers_count: 0 },
+  { id: '6', name: 'Santa Isabel', slug: 'santa-isabel', color_hex: '#E63946', website_url: 'https://www.santaisabel.cl', active_offers_count: 0 },
 ];
+
+const PRIMARY_STORE_ORDER = ['jumbo', 'lider', 'unimarc', 'tottus', 'santa-isabel', 'acuenta'];
 
 async function safeFetch(url: string) {
   try {
@@ -38,7 +40,7 @@ export default async function HomePage() {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
   
   const [offersData, stores, promotions] = await Promise.all([
-    safeFetch(`${baseUrl}/api/offers?limit=60&excludeCategory=${ALCOHOL_CATEGORY_SLUG}`),
+    safeFetch(`${baseUrl}/api/offers?limit=1000&excludeCategory=${ALCOHOL_CATEGORY_SLUG}`),
     safeFetch(`${baseUrl}/api/stores`),
     safeFetch(`${baseUrl}/api/promotions`),
   ]);
@@ -46,34 +48,52 @@ export default async function HomePage() {
   const activeStores = stores || DEMO_STORES;
   const activeOffers = offersData?.data || [];
   const activePromotions = promotions || [];
+  const orderedStores = activeStores.map((store: any) => ({
+    ...store,
+    offers: activeOffers
+      .filter((offer: any) => offer.store_slug === store.slug && offer.category_slug !== ALCOHOL_CATEGORY_SLUG)
+      .slice(0, 5),
+  }));
+  const sortedStores = orderedStores
+    .slice()
+    .sort((left: any, right: any) => {
+      const leftIndex = PRIMARY_STORE_ORDER.indexOf(left.slug);
+      const rightIndex = PRIMARY_STORE_ORDER.indexOf(right.slug);
+
+      if (leftIndex === -1 && rightIndex === -1) return left.name.localeCompare(right.name);
+      if (leftIndex === -1) return 1;
+      if (rightIndex === -1) return -1;
+      return leftIndex - rightIndex;
+    })
+    ;
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-white to-[#F0FDFA] font-sans text-gray-900">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.92),_rgba(240,253,250,0.92)_35%,_rgba(244,244,240,0.98)_100%)] font-sans text-gray-900">
       <LiveOfferTicker />
 
 
-      <main className="container mx-auto px-6 py-12">
+      <main className="container mx-auto px-4 py-10 sm:px-6 sm:py-12">
         {/* Hero */}
-        <div className="mb-16 text-center py-12">
-          <h1 className="text-5xl md:text-6xl font-black mb-6 leading-tight tracking-tight text-gray-900">
+        <div className="mb-16 rounded-[2rem] border border-white/60 bg-white/70 px-4 py-10 shadow-[0_20px_80px_-40px_rgba(13,148,136,0.35)] backdrop-blur-sm sm:px-8 sm:py-12 text-center">
+          <h1 className="text-4xl font-black mb-6 leading-tight tracking-tight text-gray-900 md:text-6xl">
             Las mejores ofertas,<br />
             <span className="text-purple">sin buscarlas</span>
           </h1>
-          <p className="text-gray-500 max-w-xl mx-auto text-lg mb-10">
+          <p className="text-gray-500 max-w-xl mx-auto text-base mb-10 sm:text-lg">
             Comparamos en tiempo real los precios de tus supermercados favoritos para que ahorres en cada compra.
           </p>
           {/* Supermercados Grid */}
           <div className="mt-12">
             <h2 className="text-xl font-bold text-gray-800 mb-6 text-left">Supermercados destacados</h2>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-3">
               {activeStores.map((store: any) => (
                 <Link
                   key={store.slug}
                   href={`/supermercado/${store.slug}`}
-                  className="flex items-center justify-center p-6 rounded-2xl border border-gray-50 shadow-sm transition-all group h-full hover:-translate-y-1"
+                  className="flex h-full items-center justify-center rounded-2xl border border-gray-50 p-5 shadow-sm transition-all group hover:-translate-y-1 sm:p-6"
                   style={{ backgroundColor: `${store.color_hex}10` }}
                 >
-                  <span className="font-bold text-lg" style={{ color: store.color_hex }}>
+                  <span className="text-base font-bold sm:text-lg" style={{ color: store.color_hex }}>
                     {store.name}
                   </span>
                 </Link>
@@ -84,7 +104,7 @@ export default async function HomePage() {
           {/* Categorias Grid */}
           <div className="mt-12">
             <h2 className="text-xl font-bold text-gray-800 mb-6 text-left">Categorias Principales</h2>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
               {PRIMARY_CATEGORIES.map(cat => (
                 <Link
                   key={cat.slug}
@@ -108,13 +128,10 @@ export default async function HomePage() {
         )}
 
         {/* Store Sections */}
-        {activeOffers.length > 0 ? (
-          activeStores.map((store: any) => {
-            const storeOffers = activeOffers
-              .filter((o: any) => o.store_slug === store.slug && o.category_slug !== ALCOHOL_CATEGORY_SLUG)
-              .slice(0, 5);
-            return <StoreSection key={store.id} store={store} offers={storeOffers} />;
-          })
+        {sortedStores.length > 0 ? (
+          sortedStores.map((store: any) => (
+            <StoreSection key={store.id} store={store} offers={store.offers} />
+          ))
         ) : (
           /* Empty state placeholder */
           <div className="text-center py-20 bg-bg-card rounded-2xl border border-border">

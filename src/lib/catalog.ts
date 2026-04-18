@@ -4,18 +4,21 @@ export const CATEGORY_OPTIONS = [
   { name: 'Carnes y Pescados', slug: 'carnes-pescados' },
   { name: 'Frutas y Verduras', slug: 'frutas-verduras' },
   { name: 'Congelados', slug: 'congelados' },
-  { name: 'Panadería y Pastelería', slug: 'panaderia-pasteleria' },
-  { name: 'Snacks y Galletas', slug: 'snacks-galletas' },
-  { name: 'Cuidado Personal y Bebe', slug: 'cuidado-personal-bebe' },
   { name: 'Limpieza del Hogar', slug: 'limpieza-hogar' },
-  { name: 'Bebidas Alcohólicas', slug: 'bebidas-alcoholicas' },
-  { name: 'Mascotas', slug: 'mascotas' },
   { name: 'Electrohogar', slug: 'electrohogar' },
-  { name: 'Bazar y Hogar', slug: 'bazar-hogar' },
+  { name: 'Mascotas', slug: 'mascotas' },
   { name: 'Despensa', slug: 'despensa' },
 ] as const;
 
-export const PRIMARY_CATEGORIES = CATEGORY_OPTIONS.slice(0, 4);
+export const PRIMARY_CATEGORIES = [
+  { name: 'Bebidas', slug: 'bebidas' },
+  { name: 'Lácteos', slug: 'lacteos' },
+  { name: 'Carnes y Pescados', slug: 'carnes-pescados' },
+  { name: 'Frutas y Verduras', slug: 'frutas-verduras' },
+  { name: 'Congelados', slug: 'congelados' },
+  { name: 'Limpieza del Hogar', slug: 'limpieza-hogar' },
+  { name: 'Despensa', slug: 'despensa' },
+] as const;
 
 export const ALCOHOL_CATEGORY_SLUG = 'bebidas-alcoholicas';
 

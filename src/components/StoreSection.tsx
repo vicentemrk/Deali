@@ -14,8 +14,6 @@ interface StoreSectionProps {
 }
 
 export function StoreSection({ store, offers }: StoreSectionProps) {
-  if (!offers || offers.length === 0) return null;
-
   return (
     <section className="mb-12">
       <div className="flex items-center justify-between mb-6 bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
@@ -32,13 +30,19 @@ export function StoreSection({ store, offers }: StoreSectionProps) {
         </Link>
       </div>
 
-      <div className="flex overflow-x-auto gap-4 pb-2 snap-x hidescrollbar">
-        {offers.map((offer) => (
-          <div key={offer.offer_id} className="min-w-[320px] max-w-[320px] snap-start">
-            <OfferCard offer={offer} />
-          </div>
-        ))}
-      </div>
+      {offers && offers.length > 0 ? (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+          {offers.slice(0, 5).map((offer) => (
+            <div key={offer.offer_id} className="h-full">
+              <OfferCard offer={offer} />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="rounded-2xl border border-dashed border-gray-200 bg-white px-4 py-8 text-sm text-gray-500">
+          Aún no hay ofertas cargadas para este supermercado.
+        </div>
+      )}
     </section>
   );
 }
