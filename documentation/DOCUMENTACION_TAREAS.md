@@ -2,14 +2,14 @@
 
 ## Resumen Ejecutivo
 
-Se completaron 4 tareas de mejora críticas para el proyecto Deali:
+Se completaron 5 tareas de mejora críticas para el proyecto Deali:
 
 1. ✅ **Tests Unitarios del CategoryMapper** - 24/24 tests pasando
 2. ✅ **Aumento de SCRAPE_LIMIT a 50** - Env var configurada
 3. ✅ **Fixtures de Parser para Jumbo/SantaIsabel** - 14 tests pasando
 4. ✅ **Script de Validación de Calidad (QA)** - 14 tests pasando
 
-**Total**: 52 tests creados, 100% pasando ✅
+**Total**: 67 tests creados, 100% pasando ✅
 
 ---
 

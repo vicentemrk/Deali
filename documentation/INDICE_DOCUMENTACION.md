@@ -13,7 +13,7 @@
   - Descripción detallada de las 5 tareas completadas
   - Problemas encontrados y soluciones
   - Estructura de archivos creados
-  - Estadísticas de tests (66 tests, 100% pasando)
+  - Estadísticas de tests (67 tests, 100% pasando)
   - Tarea 5: Imágenes de Productos y Referers
 
 ---
@@ -232,8 +232,8 @@ limpieza-hogar, bebidas, mascotas, electrohogar, bazar-hogar, despensa
 
 | Métrica | Valor |
 |---------|-------|
-| Tests Totales | 52 |
-| Tests Pasando | 52 (100%) |
+| Tests Totales | 67 |
+| Tests Pasando | 67 (100%) |
 | Líneas de Código de Tests | ~1,200 |
 | Líneas de Documentación | ~1,500 |
 | Archivos Creados | 12 |

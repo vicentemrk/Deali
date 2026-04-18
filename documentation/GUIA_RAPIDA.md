@@ -12,6 +12,11 @@ npm install
 npm test
 ```
 
+### Validar Lint
+```bash
+npm run lint
+```
+
 ---
 
 ## 📋 Tests por Tarea
