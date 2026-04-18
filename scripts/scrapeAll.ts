@@ -118,6 +118,14 @@ type StoreRunSummary = {
   error?: string;
 };
 
+type ScrapeRunMetadata = {
+  offers_found?: number;
+  offers_saved?: number;
+  error?: string;
+  duration_ms?: number;
+  run_summary?: StoreRunSummary;
+};
+
 async function getActiveOffersCount(storeId: string): Promise<number> {
   const today = new Date().toISOString().split('T')[0];
   const { count, error } = await supabase
@@ -337,12 +345,7 @@ async function processOffers(
 async function logScrapeRun(
   storeSlug: string,
   status: 'started' | 'completed' | 'failed',
-  metadata: {
-    offers_found?: number;
-    offers_saved?: number;
-    error?: string;
-    duration_ms?: number;
-  }
+  metadata: ScrapeRunMetadata
 ) {
   try {
     if (status === 'started') {
@@ -352,19 +355,39 @@ async function logScrapeRun(
       });
       if (error) console.warn(`[LoggingError] Failed to log start: ${error.message}`);
     } else {
-      const { error } = await supabase
+      const baseUpdate = {
+        finished_at: new Date().toISOString(),
+        offers_found: metadata.offers_found ?? 0,
+        offers_saved: metadata.offers_saved ?? 0,
+        error: metadata.error ?? null,
+        run_duration_ms: metadata.duration_ms ?? 0,
+      };
+
+      const updateWithSummary = {
+        ...baseUpdate,
+        ...(metadata.run_summary ? { run_summary: metadata.run_summary } : {}),
+      };
+
+      let { error } = await supabase
         .from('scrape_logs')
-        .update({
-          finished_at: new Date().toISOString(),
-          offers_found: metadata.offers_found ?? 0,
-          offers_saved: metadata.offers_saved ?? 0,
-          error: metadata.error ?? null,
-          run_duration_ms: metadata.duration_ms ?? 0,
-        })
+        .update(updateWithSummary)
         .eq('store_slug', storeSlug)
         .is('finished_at', null)
         .order('started_at', { ascending: false })
         .limit(1);
+
+      // Backward compatibility for environments where the migration is not applied yet.
+      if (error && metadata.run_summary && /run_summary/i.test(error.message)) {
+        const retry = await supabase
+          .from('scrape_logs')
+          .update(baseUpdate)
+          .eq('store_slug', storeSlug)
+          .is('finished_at', null)
+          .order('started_at', { ascending: false })
+          .limit(1);
+        error = retry.error;
+      }
+
       if (error) console.warn(`[LoggingError] Failed to log completion: ${error.message}`);
     }
   } catch (err) {
@@ -533,14 +556,7 @@ async function main() {
 
       const duration = Date.now() - startTime;
       const activeOffersAfter = await getActiveOffersCount(storeId);
-
-      await logScrapeRun(scraper.storeSlug, 'completed', {
-        offers_found: offersFound,
-        offers_saved: offersSaved,
-        duration_ms: duration,
-      });
-
-      storeRunSummaries.push({
+      const summary: StoreRunSummary = {
         storeSlug: scraper.storeSlug,
         offersFound,
         offersSaved,
@@ -549,7 +565,16 @@ async function main() {
         activeOffersAfter,
         activeOffersDelta: activeOffersAfter - (activeOffersBefore ?? activeOffersAfter),
         status: 'completed',
+      };
+
+      await logScrapeRun(scraper.storeSlug, 'completed', {
+        offers_found: offersFound,
+        offers_saved: offersSaved,
+        duration_ms: duration,
+        run_summary: summary,
       });
+
+      storeRunSummaries.push(summary);
 
       successCount++;
     } catch (err: any) {
@@ -567,6 +592,17 @@ async function main() {
         offers_saved: offersSaved,
         error: errorMsg,
         duration_ms: duration,
+        run_summary: {
+          storeSlug: scraper.storeSlug,
+          offersFound,
+          offersSaved,
+          durationMs: duration,
+          activeOffersBefore,
+          activeOffersAfter: null,
+          activeOffersDelta: null,
+          status: 'failed',
+          error: errorMsg,
+        },
       });
 
       storeRunSummaries.push({
@@ -622,14 +658,7 @@ async function main() {
       
       const duration = Date.now() - startTime;
       const activeOffersAfter = await getActiveOffersCount(storeId);
-
-      await logScrapeRun(scraper.storeSlug, 'completed', {
-        offers_found: offersFound,
-        offers_saved: offersSaved,
-        duration_ms: duration,
-      });
-
-      storeRunSummaries.push({
+      const summary: StoreRunSummary = {
         storeSlug: scraper.storeSlug,
         offersFound,
         offersSaved,
@@ -638,7 +667,16 @@ async function main() {
         activeOffersAfter,
         activeOffersDelta: activeOffersAfter - (activeOffersBefore ?? activeOffersAfter),
         status: 'completed',
+      };
+
+      await logScrapeRun(scraper.storeSlug, 'completed', {
+        offers_found: offersFound,
+        offers_saved: offersSaved,
+        duration_ms: duration,
+        run_summary: summary,
       });
+
+      storeRunSummaries.push(summary);
       
       successCount++;
     } catch (err: any) {
@@ -656,6 +694,17 @@ async function main() {
         offers_saved: offersSaved,
         error: errorMsg,
         duration_ms: duration,
+        run_summary: {
+          storeSlug: scraper.storeSlug,
+          offersFound,
+          offersSaved,
+          durationMs: duration,
+          activeOffersBefore,
+          activeOffersAfter: null,
+          activeOffersDelta: null,
+          status: 'failed',
+          error: errorMsg,
+        },
       });
 
       storeRunSummaries.push({
