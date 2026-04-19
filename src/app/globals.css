@@ -2,39 +2,132 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================================
+   CSS VARIABLES — Light mode (default)
+   ============================================================================ */
 :root {
-  --color-teal: #0f766e;
-  --color-teal-light: #dff8f4;
-  --color-purple: #6d5ac2;
-  --color-purple-light: #ece9ff;
-  --color-danger: #dc2626;
-  --color-warn: #b7791f;
-  --color-bg-page: #f5f5f5;
-  --color-bg-card: #fffefa;
-  --color-bg-input: #f1f1ec;
-  --color-border: #dfded4;
-  --color-ink: #1f2937;
-  --color-ink-weak: #6b7280;
-  --color-ink-strong: #111827;
+  /* Colores de marca */
+  --teal:         #0D9488;
+  --teal-light:   #E6FBF8;
+  --teal-dark:    #0F766E;
+  --purple:       #7E6BC4;
+  --purple-light: #F0EEFF;
+  --purple-dark:  #5B48A8;
+  --deal-red:     #DC2626;
+  --navy:         #1E1B4B;
+
+  /* Superficies */
+  --bg-page:    #F4F4F0;
+  --bg-card:    #FFFFFF;
+  --bg-surface: #FAFAF7;
+  --bg-input:   #F0F0EA;
+
+  /* Bordes */
+  --border:       #E2E2DA;
+  --border-light: #EDEDE8;
+
+  /* Texto */
+  --text-primary:   #111827;
+  --text-secondary: #374151;
+  --text-muted:     #6B7280;
+  --text-faint:     #9CA3AF;
+
+  /* Dot pattern del fondo */
+  --dot-color: rgba(0, 0, 0, 0.08);
+  --dot-size:  24px;
 }
 
+/* ============================================================================
+   CSS VARIABLES — Dark mode
+   Se activan añadiendo la clase "dark" en <html>
+   ============================================================================ */
 .dark {
-  --color-teal: #2dd4bf;
-  --color-teal-light: #0f292e;
-  --color-purple: #a78bfa;
-  --color-purple-light: #1e1640;
-  --color-danger: #ef4444;
-  --color-warn: #fbbf24;
-  --color-bg-page: #0f1117;
-  --color-bg-card: #1a1d27;
-  --color-bg-input: #1e2130;
-  --color-border: #2e3040;
-  --color-ink: #e5e7eb;
-  --color-ink-weak: #9ca3af;
-  --color-ink-strong: #f9fafb;
+  /* Superficies */
+  --bg-page:    #0F172A;
+  --bg-card:    #1E293B;
+  --bg-surface: #243146;
+  --bg-input:   #1E293B;
+
+  /* Bordes */
+  --border:       #334155;
+  --border-light: #2D3A4E;
+
+  /* Texto */
+  --text-primary:   #F1F5F9;
+  --text-secondary: #CBD5E1;
+  --text-muted:     #94A3B8;
+  --text-faint:     #64748B;
+
+  /* Colores de marca — más brillantes en oscuro */
+  --teal:         #14B8A6;
+  --teal-light:   #0F3D38;
+  --purple:       #A78BFA;
+  --purple-light: #2D1F5E;
+
+  /* Dot pattern — más sutil en oscuro */
+  --dot-color: rgba(255, 255, 255, 0.04);
 }
 
-/* Hide scrollbar for horizontal scroll sections */
+/* ============================================================================
+   BASE STYLES
+   ============================================================================ */
+html {
+  /* Transición suave al cambiar de modo */
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+body {
+  background-color: var(--bg-page);
+  color: var(--text-primary);
+  /* Patrón de puntos adaptativo */
+  background-image: radial-gradient(circle, var(--dot-color) 1.5px, transparent 1.5px);
+  background-size: var(--dot-size) var(--dot-size);
+  /* Transición suave */
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+/* Transición en tarjetas y superficies */
+* {
+  transition-property: background-color, border-color, color;
+  transition-timing-function: ease;
+  transition-duration: 0.2s;
+}
+
+/* Excepciones — no transicionar transforms ni shadows (rompe animaciones) */
+*[class*="hover:"],
+*[class*="group-hover:"],
+*[class*="-translate"],
+*[class*="scale"],
+*[class*="animate"] {
+  transition-property: transform, opacity, box-shadow, background-color, border-color, color;
+}
+
+/* ============================================================================
+   CLASES DE UTILIDAD PERSONALIZADAS
+   ============================================================================ */
+
+/* Tarjeta base — se adapta a light/dark */
+.card-base {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+}
+
+/* Input base */
+.input-base {
+  background-color: var(--bg-input);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+}
+
+/* Texto muted */
+.text-muted {
+  color: var(--text-muted);
+}
+
+/* ============================================================================
+   SCROLLBAR — ocultar en scroll horizontal
+   ============================================================================ */
 .hidescrollbar::-webkit-scrollbar {
   display: none;
 }
@@ -43,90 +136,85 @@
   scrollbar-width: none;
 }
 
-/* ── Base resets & typography ──────────────────────────────────── */
-
-html {
-  scroll-behavior: smooth;
+/* ============================================================================
+   SCROLLBAR GLOBAL — estilo minimalista
+   ============================================================================ */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 99px;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: var(--border);
 }
 
-body {
-  color: var(--color-ink);
-  background-color: var(--color-bg-page);
-  background-image:
-    radial-gradient(circle at 1px 1px, rgba(17, 24, 39, 0.05) 1px, transparent 0),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(245, 245, 245, 0.98));
-  background-size: 18px 18px, 100% 100%;
+/* ============================================================================
+   HERO GRADIENT — fondo del hero section
+   ============================================================================ */
+.hero-glow {
+  background: radial-gradient(
+    ellipse 80% 60% at 50% -10%,
+    rgba(13, 148, 136, 0.12) 0%,
+    transparent 70%
+  ),
+  radial-gradient(
+    ellipse 60% 40% at 80% 50%,
+    rgba(126, 107, 196, 0.08) 0%,
+    transparent 60%
+  );
 }
 
-h1,
-h2,
-h3,
-h4 {
-  font-family: var(--font-display), sans-serif;
-  letter-spacing: -0.02em;
+.dark .hero-glow {
+  background: radial-gradient(
+    ellipse 80% 60% at 50% -10%,
+    rgba(20, 184, 166, 0.15) 0%,
+    transparent 70%
+  ),
+  radial-gradient(
+    ellipse 60% 40% at 80% 50%,
+    rgba(167, 139, 250, 0.10) 0%,
+    transparent 60%
+  );
 }
 
-/* ── Global animations ────────────────────────────────────────── */
-
-@keyframes fade-in-up {
-  from {
-    opacity: 0;
-    transform: translateY(12px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+/* ============================================================================
+   STORE CARD — tarjetas de supermercado
+   ============================================================================ */
+.store-card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  transition: all 0.25s ease;
 }
 
-@keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+.store-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
 }
 
-@keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-6px); }
+.dark .store-card:hover {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
 }
 
-@keyframes ticker {
-  0% { transform: translateX(100vw); }
-  100% { transform: translateX(-100%); }
-}
-
-.animate-fade-in-up {
-  animation: fade-in-up 0.5s ease-out both;
-}
-
-.animate-shimmer {
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
-  background-size: 200% 100%;
-  animation: shimmer 2s infinite;
-}
-
-.animate-float {
-  animation: float 3s ease-in-out infinite;
-}
-
-/* Stagger animation delays for grid children */
-.stagger-children > *:nth-child(1) { animation-delay: 0ms; }
-.stagger-children > *:nth-child(2) { animation-delay: 60ms; }
-.stagger-children > *:nth-child(3) { animation-delay: 120ms; }
-.stagger-children > *:nth-child(4) { animation-delay: 180ms; }
-.stagger-children > *:nth-child(5) { animation-delay: 240ms; }
-.stagger-children > *:nth-child(6) { animation-delay: 300ms; }
-.stagger-children > *:nth-child(7) { animation-delay: 360ms; }
-.stagger-children > *:nth-child(8) { animation-delay: 420ms; }
-
-/* ── Selection & focus ────────────────────────────────────────── */
-
+/* ============================================================================
+   SELECCIÓN DE TEXTO — en colores de marca
+   ============================================================================ */
 ::selection {
-  background: var(--color-purple-light);
-  color: var(--color-purple);
+  background: rgba(126, 107, 196, 0.2);
+  color: var(--text-primary);
 }
 
+/* ============================================================================
+   FOCUS RING — accesibilidad con color de marca
+   ============================================================================ */
 :focus-visible {
-  outline: 2px solid var(--color-purple);
+  outline: 2px solid var(--teal);
   outline-offset: 2px;
-  border-radius: 8px;
+  border-radius: 4px;
 }
