@@ -13,7 +13,8 @@
     "test:smoke": "tsx scripts/qa/smokeIntegration.ts",
     "clean:low-quality": "tsx scripts/cleanLowQualityOffers.ts",
     "monitor:db": "tsx scripts/monitorDbRealtime.ts",
-    "monitor:db:watch": "tsx scripts/monitorDbRealtime.ts --watch --interval=30000"
+    "monitor:db:watch": "tsx scripts/monitorDbRealtime.ts --watch --interval=30000",
+    "worker:scrape-queue": "tsx scripts/processScrapeQueue.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

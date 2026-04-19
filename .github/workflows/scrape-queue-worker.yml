@@ -1,0 +1,42 @@
+name: Scrape Queue Worker
+
+# Procesa la cola scrape_jobs creada por /api/admin/scraper/trigger.
+# Corre cada 10 minutos y también manualmente.
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+env:
+  NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+  SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+jobs:
+  process-queue:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate secrets
+        run: |
+          [ -z "$NEXT_PUBLIC_SUPABASE_URL" ] && echo "::error::SUPABASE_URL secret missing" && exit 1
+          [ -z "$SUPABASE_SERVICE_ROLE_KEY" ] && echo "::error::SUPABASE_SERVICE_ROLE_KEY secret missing" && exit 1
+          echo "✅ Secrets OK"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium --with-deps
+
+      - name: Process one queued scrape job
+        run: npm run worker:scrape-queue
