@@ -132,6 +132,7 @@ export class TottusScraper implements StoreScraper {
       console.warn('[TottusScraper] Blocked by Cloudflare. Set TOTTUS_COOKIE in .env.local to reuse a valid browser session.');
     }
 
+    // Aggressive Playwright fallback with more categories
     if (offers.length < TARGET_PRODUCTS) {
       const playwrightOffers = await scrapeStoreWithPlaywrightFallback({
         logTag: 'TottusScraper',
@@ -142,8 +143,11 @@ export class TottusScraper implements StoreScraper {
           'https://www.tottus.cl/tottus-cl/lista/CATG24758/Aseo-y-Limpieza?sid=HO_CS_ASE_471',
           'https://www.tottus.cl/tottus-cl/lista/CATG24751/Abarrotes?sid=HO_CS_DES_472',
           'https://www.tottus.cl/tottus-cl/lista/CATG24754/Lacteos?sid=HO_CS_LAC_474',
+          'https://www.tottus.cl/tottus-cl/lista/CATG24753/Carnes-y-Pescados?sid=HO_CS_CAR_473',
+          'https://www.tottus.cl/tottus-cl/lista/CATG24755/Congelados?sid=HO_CS_CON_475',
+          'https://www.tottus.cl/tottus-cl/lista/CATG24756/Frutas-y-Verduras?sid=HO_CS_FRU_476',
         ],
-        maxProducts: 75,
+        maxProducts: 100, // Increase target for Playwright
       });
 
       offers = mergeUniqueOffers(offers, playwrightOffers);
