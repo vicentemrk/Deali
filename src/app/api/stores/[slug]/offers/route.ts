@@ -22,8 +22,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
   const sort = searchParams.get('sort') || 'discount_desc';
 
   const safeLimit = Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 100) : 20;
+  const safePage = Number.isFinite(page) ? Math.min(Math.max(page, 1), 100) : 1;
 
-  const cacheKey = `offers:store:${slug}:${JSON.stringify({ page, safeLimit, category, sort })}`;
+  const cacheKey = `offers:store:${slug}:${JSON.stringify({ page: safePage, safeLimit, category, sort })}`;
 
   try {
     const supabase = await createServerSupabaseClient();
@@ -43,7 +44,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
           query = query.eq('category_slug', category);
         }
 
-        const from = (page - 1) * safeLimit;
+        const from = (safePage - 1) * safeLimit;
         const to = from + safeLimit - 1;
 
         switch (sort) {
@@ -67,7 +68,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
         const { data, error, count } = await query;
         if (error) throw error;
 
-        return { data: data as OfferRow[], total: count || 0, page };
+        return { data: data as OfferRow[], total: count || 0, page: safePage };
       },
       30 * 60
     );

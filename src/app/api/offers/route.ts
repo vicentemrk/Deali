@@ -35,9 +35,10 @@ export async function GET(req: NextRequest) {
   const sort = searchParams.get('sort') || 'discount_desc';
 
   const safeLimit = Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 1000) : 20;
+  const safePage = Number.isFinite(page) ? Math.min(Math.max(page, 1), 100) : 1;
 
   // Create hash params for cache key
-  const cacheKey = `offers:list:${buildCacheKey({ page, limit: safeLimit, store, category, excludeCategory, q, sort })}`;
+  const cacheKey = `offers:list:${buildCacheKey({ page: safePage, limit: safeLimit, store, category, excludeCategory, q, sort })}`;
 
   try {
     const supabase = await createServerSupabaseClient();
@@ -68,7 +69,7 @@ export async function GET(req: NextRequest) {
           query = query.ilike('product_name', `%${q}%`);
         }
 
-        const from = (page - 1) * safeLimit;
+        const from = (safePage - 1) * safeLimit;
         const to = from + safeLimit - 1;
 
         switch (sort) {
@@ -94,7 +95,7 @@ export async function GET(req: NextRequest) {
           throw error;
         }
 
-        return { data, total: count || 0, page };
+        return { data, total: count || 0, page: safePage };
       },
       30 * 60 // 30 mins
     );

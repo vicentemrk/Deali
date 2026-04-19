@@ -23,7 +23,7 @@ const RULES: Array<[RegExp, string]> = [
   [/l[aá]cteo|yogur|queso|mantequilla|crema\s+de\s+leche|leche|huevo|margarina/i, 'lacteos'],
 
   // ── Carnes y Pescados ─────────────────────────────────────────────────────
-  [/carnes?|aves?|pollo|cerdo|vacuno|pavo|cordero|embutido|jamón|salchicha|mariscos?|pescado|salm[oó]n|atún/i, 'carnes-pescados'],
+  [/carnes?|aves?|pollo|cerdo|vacuno|pavo|cordero|fiambre|embutido|charcuter|jamón|salchicha|mariscos?|pescado|salm[oó]n|atún/i, 'carnes-pescados'],
 
   // ── Frutas y Verduras ─────────────────────────────────────────────────
   [/frutas?|verduras?|hortalizas?|ensalada\s+bag|vegetal|tomate|lechuga|cebolla|manzana|palta|plátano/i, 'frutas-verduras'],
