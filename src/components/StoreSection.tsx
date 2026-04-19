@@ -14,6 +14,10 @@ interface StoreSectionProps {
 }
 
 export function StoreSection({ store, offers }: StoreSectionProps) {
+  const totalOffers = offers.length;
+  const displayedOffers = 5;
+  const remainingOffers = Math.max(0, totalOffers - displayedOffers);
+
   return (
     <section className="mb-12 rounded-3xl border border-border bg-white/70 p-5 shadow-soft sm:p-6">
       <div className="mb-6 flex items-center justify-between rounded-2xl border border-border bg-bg-card p-4 shadow-sm">
@@ -26,7 +30,8 @@ export function StoreSection({ store, offers }: StoreSectionProps) {
           href={`/supermercado/${store.slug}`}
           className="inline-flex items-center gap-1 rounded-full border border-border bg-white px-3 py-1.5 text-sm font-semibold text-ink-weak transition-colors hover:text-teal"
         >
-          Ver todas <ArrowRight className="w-4 h-4"/>
+          {remainingOffers > 0 ? `Ver ${remainingOffers} más` : 'Ver todas'} 
+          <ArrowRight className="w-4 h-4"/>
         </Link>
       </div>
 

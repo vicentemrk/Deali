@@ -14,11 +14,15 @@ function getInitialTheme(): boolean {
 }
 
 export function ThemeToggle() {
-  const [dark, setDark] = useState(getInitialTheme);
+  const [dark, setDark] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', dark);
-  }, [dark]);
+    setMounted(true);
+    const isDark = getInitialTheme();
+    setDark(isDark);
+    document.documentElement.classList.toggle('dark', isDark);
+  }, []);
 
   function toggle() {
     const next = !dark;
@@ -26,6 +30,8 @@ export function ThemeToggle() {
     document.documentElement.classList.toggle('dark', next);
     localStorage.setItem('theme', next ? 'dark' : 'light');
   }
+
+  if (!mounted) return null;
 
   return (
     <button

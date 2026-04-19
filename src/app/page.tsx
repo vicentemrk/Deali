@@ -71,7 +71,7 @@ export default async function HomePage() {
             </h1>
 
             <p className="mx-auto mt-5 max-w-xl text-base text-ink-weak sm:text-lg">
-              Comparamos en tiempo real los precios de tus supermercados favoritos para que ahorres en cada compra.
+              Comparamos en tiempo real los precios de supermercados para que ahorres en cada compra.
             </p>
 
             {/* Stats */}
