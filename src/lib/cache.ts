@@ -1,10 +1,19 @@
 import { Redis } from '@upstash/redis';
 
-// Create the redis client if env vars are present
-const redis = process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
+function sanitizeEnv(value: string | undefined): string {
+  if (!value) return '';
+  const trimmed = value.trim();
+  return trimmed.replace(/^['\"]+|['\"]+$/g, '');
+}
+
+const redisUrl = sanitizeEnv(process.env.UPSTASH_REDIS_REST_URL);
+const redisToken = sanitizeEnv(process.env.UPSTASH_REDIS_REST_TOKEN);
+
+// Create the redis client only when env vars are valid.
+const redis = redisUrl.startsWith('https://') && redisToken
   ? new Redis({
-      url: process.env.UPSTASH_REDIS_REST_URL,
-      token: process.env.UPSTASH_REDIS_REST_TOKEN,
+      url: redisUrl,
+      token: redisToken,
     })
   : null;
 
