@@ -214,19 +214,7 @@ function parseProduct(
   };
 }
 
-function mergeUniqueOffers(base: RawOffer[], incoming: RawOffer[]): RawOffer[] {
-  const merged = [...base];
-  const seen = new Set(base.map((offer) => offer.productName.trim().toLowerCase()));
-
-  for (const offer of incoming) {
-    const key = offer.productName.trim().toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    merged.push(offer);
-  }
-
-  return merged;
-}
+import { mergeUniqueOffers } from '../lib/mergeOffers';
 
 /**
  * Runs one filter strategy across pages.

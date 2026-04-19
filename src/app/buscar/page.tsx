@@ -64,7 +64,6 @@ export default async function BuscarPage({ searchParams }: PageProps) {
 
         {offers.length === 0 ? (
           <div className="animate-fade-in-up rounded-2xl border border-dashed border-border bg-white/70 p-12 text-center backdrop-blur-sm">
-            <div className="text-5xl mb-4">🔍</div>
             <h2 className="text-xl font-bold text-gray-800 mb-2">No encontramos resultados</h2>
             <p className="text-gray-500 max-w-md mx-auto">Intenta buscar con otras palabras clave o navega por las categorías.</p>
           </div>

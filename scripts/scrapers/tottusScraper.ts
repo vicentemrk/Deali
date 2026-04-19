@@ -12,19 +12,7 @@ const TOTTUS_WIDGET_IDS = [
 
 const TARGET_PRODUCTS = 75;
 
-function mergeUniqueOffers(primary: RawOffer[], secondary: RawOffer[]): RawOffer[] {
-  const merged = [...primary];
-  const seen = new Set(primary.map((offer) => offer.productName.trim().toLowerCase()));
-
-  for (const offer of secondary) {
-    const key = offer.productName.trim().toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    merged.push(offer);
-  }
-
-  return merged;
-}
+import { mergeUniqueOffers } from '../lib/mergeOffers';
 
 const TOTTUS_ZONES = [
   'PCL1223', 'PCL2976', 'PCL3651', 'PCL3887', 'PCL2709', 'PCL2829', 'PCL3505', 'PCL3136',

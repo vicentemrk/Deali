@@ -4,9 +4,8 @@ import { StoreSection } from '@/components/StoreSection';
 import { PromotionBanner } from '@/components/PromotionBanner';
 import { Footer } from '@/components/Footer';
 import Link from 'next/link';
-import { ALCOHOL_CATEGORY_SLUG, PRIMARY_CATEGORIES } from '@/lib/catalog';
+import { ALCOHOL_CATEGORY_SLUG } from '@/lib/catalog';
 import { fetchJson, type OfferCardData, type PromotionSummary, type StoreSummary, type PagedOffersResponse } from '@/lib/siteData';
-import { ArrowRight, Sparkles, TrendingDown } from 'lucide-react';
 
 type OfferSummary = OfferCardData & {
   store_slug: string;
@@ -66,14 +65,9 @@ export default async function HomePage() {
           <div className="pointer-events-none absolute -bottom-32 -left-16 h-80 w-80 rounded-full bg-teal/10 blur-3xl" />
 
           <div className="relative z-10 text-center">
-            <div className="mb-5 inline-flex items-center gap-2 rounded-full bg-purple-light/70 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-purple backdrop-blur-sm">
-              <Sparkles className="h-3.5 w-3.5" />
-              Comparador de precios
-            </div>
-
             <h1 className="mx-auto max-w-3xl text-4xl font-black leading-[1.1] tracking-tight text-gray-900 sm:text-5xl md:text-6xl">
               Las mejores ofertas,<br />
-              <span className="bg-gradient-to-r from-purple to-teal bg-clip-text text-transparent">sin buscarlas</span>
+              sin buscarlas
             </h1>
 
             <p className="mx-auto mt-5 max-w-xl text-base text-ink-weak sm:text-lg">
@@ -99,10 +93,7 @@ export default async function HomePage() {
 
         {/* ── Supermercados Grid ───────────────────────────────── */}
         <section className="animate-fade-in-up mb-14" style={{ animationDelay: '100ms' }}>
-          <div className="mb-6 flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-teal-light">
-              <TrendingDown className="h-4.5 w-4.5 text-teal" />
-            </div>
+          <div className="mb-6">
             <h2 className="text-xl font-bold text-gray-900 sm:text-2xl">Supermercados</h2>
           </div>
           <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-6 stagger-children">
@@ -131,14 +122,20 @@ export default async function HomePage() {
 
         {/* ── Categorías Grid ─────────────────────────────────── */}
         <section className="animate-fade-in-up mb-14" style={{ animationDelay: '200ms' }}>
-          <div className="mb-6 flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-purple-light">
-              <Sparkles className="h-4.5 w-4.5 text-purple" />
-            </div>
+          <div className="mb-6">
             <h2 className="text-xl font-bold text-gray-900 sm:text-2xl">Categorías</h2>
           </div>
-          <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 xl:grid-cols-4 stagger-children">
-            {PRIMARY_CATEGORIES.map(cat => (
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4 stagger-children">
+            {[
+              { name: 'Bebidas', slug: 'bebidas' },
+              { name: 'Lácteos', slug: 'lacteos' },
+              { name: 'Carnes y Pescados', slug: 'carnes-pescados' },
+              { name: 'Frutas y Verduras', slug: 'frutas-verduras' },
+              { name: 'Congelados', slug: 'congelados' },
+              { name: 'Limpieza del Hogar', slug: 'limpieza-hogar' },
+              { name: 'Despensa', slug: 'despensa' },
+              { name: 'Mascotas', slug: 'mascotas' },
+            ].map(cat => (
               <Link
                 key={cat.slug}
                 href={`/categoria/${cat.slug}`}
@@ -172,7 +169,6 @@ export default async function HomePage() {
           </div>
         ) : (
           <div className="animate-fade-in-up rounded-2xl border border-border bg-white/70 p-12 text-center shadow-sm backdrop-blur-sm">
-            <div className="text-6xl mb-6">🛒</div>
             <h2 className="text-2xl font-bold text-gray-800 mb-3">Conecta tu base de datos</h2>
             <p className="text-gray-500 max-w-md mx-auto mb-8">
               Configura las variables de entorno de Supabase en tu archivo <code className="bg-bg-input px-2 py-0.5 rounded text-sm">.env.local</code> para ver ofertas reales.

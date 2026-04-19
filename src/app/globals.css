@@ -18,6 +18,22 @@
   --color-ink-strong: #111827;
 }
 
+.dark {
+  --color-teal: #2dd4bf;
+  --color-teal-light: #0f292e;
+  --color-purple: #a78bfa;
+  --color-purple-light: #1e1640;
+  --color-danger: #ef4444;
+  --color-warn: #fbbf24;
+  --color-bg-page: #0f1117;
+  --color-bg-card: #1a1d27;
+  --color-bg-input: #1e2130;
+  --color-border: #2e3040;
+  --color-ink: #e5e7eb;
+  --color-ink-weak: #9ca3af;
+  --color-ink-strong: #f9fafb;
+}
+
 /* Hide scrollbar for horizontal scroll sections */
 .hidescrollbar::-webkit-scrollbar {
   display: none;

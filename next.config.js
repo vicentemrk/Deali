@@ -11,9 +11,10 @@ const nextConfig = {
       { protocol: 'https', hostname: 'tottus.vteximg.com.br' },
       { protocol: 'https', hostname: 'santaisabel.vteximg.com.br' },
       { protocol: 'https', hostname: 'lider.vteximg.com.br' },
-      // Walmart Chile (Líder) — main site images
+      // Walmart Chile (Líder) — main site and CDN images
       { protocol: 'https', hostname: '*.lider.cl' },
       { protocol: 'https', hostname: 'images.lider.cl' },
+      { protocol: 'https', hostname: '*.walmartimages.cl' },
       // Falabella (Tottus) — Scene7 CDN for high-res product images
       { protocol: 'https', hostname: '*.falabella.com' },
       { protocol: 'https', hostname: 'falabella.scene7.com' },

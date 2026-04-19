@@ -94,9 +94,8 @@ export default async function CategoryPage({ params, searchParams }: PageProps) 
 
         {offers.length === 0 ? (
           <div className="animate-fade-in-up rounded-2xl border border-dashed border-border bg-white/70 p-12 text-center backdrop-blur-sm">
-            <div className="text-5xl mb-4">🏷️</div>
             <h2 className="text-xl font-bold text-gray-800 mb-2">No hay ofertas en esta categoría</h2>
-            <p className="text-gray-500">Las ofertas se actualizan cada 3 horas. Vuelve pronto!</p>
+            <p className="text-gray-500">Las ofertas se actualizan cada 3 horas. Vuelve pronto.</p>
           </div>
         ) : (
           <>

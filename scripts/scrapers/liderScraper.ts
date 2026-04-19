@@ -5,19 +5,7 @@ import { parseCLP } from '../lib/priceParser';
 
 const TARGET_PRODUCTS = 75;
 
-function mergeUniqueOffers(primary: RawOffer[], secondary: RawOffer[]): RawOffer[] {
-  const merged = [...primary];
-  const seen = new Set(primary.map((offer) => offer.productName.trim().toLowerCase()));
-
-  for (const offer of secondary) {
-    const key = offer.productName.trim().toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    merged.push(offer);
-  }
-
-  return merged;
-}
+import { mergeUniqueOffers } from '../lib/mergeOffers';
 
 const LIDER_PROMO_URLS = [
   'https://super.lider.cl/content/productos-a-mil/96311243?ContentZone3&co_ty=Hubspokes&co_nm=tusfavoritos_W15&co_id=09042026_trafico_vertodo&co_or=1',

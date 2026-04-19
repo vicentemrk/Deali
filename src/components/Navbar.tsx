@@ -2,6 +2,7 @@ import React from 'react';
 import Link from 'next/link';
 import { DynamicMenu } from './DynamicMenu';
 import { MobileMenu } from './MobileMenu';
+import { ThemeToggle } from './ThemeToggle';
 import { CATEGORY_OPTIONS } from '@/lib/catalog';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 
@@ -132,15 +133,18 @@ export async function Navbar() {
               <input
                 type="search"
                 name="q"
-                className="block w-full rounded-xl border border-border bg-bg-input p-2.5 pl-9 text-sm text-ink outline-none transition-all placeholder:text-ink-weak focus:border-purple focus:ring-2 focus:ring-purple/20"
+                className="block w-full rounded-xl border border-border bg-bg-input px-3 py-2 pl-9 text-sm text-ink outline-none transition-all placeholder:text-ink-weak focus:border-purple focus:ring-2 focus:ring-purple/20"
                 placeholder="Buscar ofertas..."
                 required
               />
             </div>
-            <button type="submit" className="rounded-xl bg-purple px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-white shadow-sm transition-all hover:bg-purple/90 hover:shadow-md hover:shadow-purple/20">
+            <button type="submit" className="rounded-xl bg-purple px-4 py-2 text-sm font-bold text-white shadow-sm transition-all hover:bg-purple/90 hover:shadow-md hover:shadow-purple/20">
               Buscar
             </button>
           </form>
+
+          {/* Theme Toggle */}
+          <ThemeToggle />
 
           {/* Mobile Menu Button */}
           <MobileMenu categories={menuCategories} />
