@@ -112,7 +112,7 @@ export async function Navbar() {
     <header className="sticky top-0 z-40 border-b border-border/80 bg-white/80 backdrop-blur-xl">
       <div className="container mx-auto flex items-center justify-between gap-4 px-4 py-3 sm:px-6">
         {/* Logo */}
-        <Link href="/" className="inline-flex items-center gap-2 text-2xl font-black tracking-tight text-teal transition-transform hover:scale-[1.03] sm:text-3xl">
+        <Link href="/" className="inline-flex items-center gap-2 text-2xl font-black tracking-tight text-gray-900 transition-transform hover:scale-[1.03] sm:text-3xl">
           <span className="font-display">Deali.</span>
         </Link>
 
@@ -138,7 +138,7 @@ export async function Navbar() {
                 required
               />
             </div>
-            <button type="submit" className="rounded-xl bg-purple px-4 py-2 text-sm font-bold text-white shadow-sm transition-all hover:bg-purple/90 hover:shadow-md hover:shadow-purple/20">
+            <button type="submit" className="rounded-xl bg-gray-900 px-4 py-2 text-sm font-bold text-white shadow-sm transition-all hover:bg-gray-800 hover:shadow-md hover:shadow-gray-900/20">
               Buscar
             </button>
           </form>

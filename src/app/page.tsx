@@ -78,12 +78,12 @@ export default async function HomePage() {
             {totalOffers > 0 && (
               <div className="mx-auto mt-8 flex max-w-sm items-center justify-center gap-8">
                 <div className="text-center">
-                  <div className="text-2xl font-black text-teal sm:text-3xl">{totalOffers.toLocaleString('es-CL')}</div>
+                  <div className="text-2xl font-black text-gray-900 sm:text-3xl">{totalOffers.toLocaleString('es-CL')}</div>
                   <div className="text-xs font-medium uppercase tracking-wider text-ink-weak">Ofertas activas</div>
                 </div>
                 <div className="h-10 w-px bg-border" />
                 <div className="text-center">
-                  <div className="text-2xl font-black text-purple sm:text-3xl">{totalStores}</div>
+                  <div className="text-2xl font-black text-gray-900 sm:text-3xl">{totalStores}</div>
                   <div className="text-xs font-medium uppercase tracking-wider text-ink-weak">Supermercados</div>
                 </div>
               </div>
