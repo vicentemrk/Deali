@@ -87,19 +87,6 @@ const config: Config = {
         },
       },
     },
-      borderRadius: {
-        xl2: '1rem',
-        xl3: '1.5rem',
-      },
-      boxShadow: {
-        soft: '0 10px 28px -18px rgba(15, 23, 42, 0.28)',
-        card: '0 18px 45px -28px rgba(13, 148, 136, 0.35)',
-      },
-      fontFamily: {
-        sans: ['var(--font-sans)', 'sans-serif'],
-        display: ['var(--font-display)', 'sans-serif'],
-      },
-    },
   },
   plugins: [],
 };
