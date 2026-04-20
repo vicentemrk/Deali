@@ -24,22 +24,6 @@ const DEMO_STORES = [
   { id: '6', name: 'Santa Isabel', slug: 'santa-isabel', color_hex: '#E91E63', website_url: 'https://www.santaisabel.cl' },
 ];
 
-// Emojis para categorías — ayudan a escanear rápido sin imagen
-const CATEGORY_ICONS: Record<string, string> = {
-  'bebidas':              '🥤',
-  'bebidas-alcoholicas':  '🍺',
-  'carnes-pescados':      '🥩',
-  'frutas-verduras':      '🥦',
-  'congelados':           '❄️',
-  'panaderia-pasteleria': '🍞',
-  'snacks-galletas':      '🍪',
-  'cuidado-personal-bebe':'🧴',
-  'limpieza-hogar':       '🧹',
-  'mascotas':             '🐾',
-  'despensa':             '🛒',
-  'electrohogar':         '📺',
-};
-
 async function safeFetch(url: string) {
   try {
     const res = await fetch(url, { cache: 'no-store' });
@@ -54,7 +38,7 @@ export default async function HomePage() {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
   const [offersData, stores, promotions] = await Promise.all([
-    safeFetch(`${baseUrl}/api/offers?limit=60&excludeCategory=${ALCOHOL_CATEGORY_SLUG}`),
+    safeFetch(`${baseUrl}/api/offers?limit=1000&excludeCategory=${ALCOHOL_CATEGORY_SLUG}`),
     safeFetch(`${baseUrl}/api/stores`),
     safeFetch(`${baseUrl}/api/promotions`),
   ]);
@@ -62,9 +46,6 @@ export default async function HomePage() {
   const activeStores   = stores        || DEMO_STORES;
   const activeOffers   = offersData?.data || [];
   const activePromotions = promotions  || [];
-
-  // Total de ofertas para mostrar en el hero
-  const totalOffers = offersData?.total ?? 0;
 
   return (
     <div className="min-h-screen font-sans" style={{ backgroundColor: 'var(--bg-page)', color: 'var(--text-primary)' }}>
@@ -96,32 +77,6 @@ export default async function HomePage() {
             Comparamos en tiempo real los precios de tus supermercados favoritos
             para que ahorres en cada compra.
           </p>
-
-          {/* Stats */}
-          {totalOffers > 0 && (
-            <div className="inline-flex items-center gap-8 px-8 py-4 rounded-2xl mb-10"
-                 style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-              <div className="text-center">
-                <div className="text-3xl font-black" style={{ color: 'var(--teal)' }}>
-                  {totalOffers}
-                </div>
-                <div className="text-xs font-semibold uppercase tracking-widest mt-0.5"
-                     style={{ color: 'var(--text-muted)' }}>
-                  Ofertas activas
-                </div>
-              </div>
-              <div className="w-px h-10" style={{ backgroundColor: 'var(--border)' }}/>
-              <div className="text-center">
-                <div className="text-3xl font-black" style={{ color: 'var(--purple)' }}>
-                  {activeStores.length}
-                </div>
-                <div className="text-xs font-semibold uppercase tracking-widest mt-0.5"
-                     style={{ color: 'var(--text-muted)' }}>
-                  Supermercados
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* CTA */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
@@ -157,10 +112,6 @@ export default async function HomePage() {
                   href={`/supermercado/${store.slug}`}
                   className="store-card flex flex-col items-center justify-center p-5 text-center min-h-[90px] group"
                 >
-                  <div
-                    className="w-3 h-3 rounded-full mb-3 group-hover:scale-125 transition-transform"
-                    style={{ backgroundColor: color }}
-                  />
                   <span className="font-bold text-sm" style={{ color: color }}>
                     {store.name}
                   </span>
@@ -187,9 +138,6 @@ export default async function HomePage() {
                   className="store-card flex flex-col items-center justify-center p-4 text-center min-h-[80px] group hover:border-purple/40"
                   style={{ borderColor: 'var(--border)' }}
                 >
-                  <div className="text-3xl mb-2">
-                    {CATEGORY_ICONS[cat.slug] || '📦'}
-                  </div>
                   <span className="font-bold text-xs" style={{ color: 'var(--text-secondary)' }}>
                     {cat.name}
                   </span>
@@ -214,14 +162,20 @@ export default async function HomePage() {
               Ofertas destacadas
             </h2>
             {activeStores.map((store: any) => {
-              const storeOffers = activeOffers
-                .filter((o: any) =>
-                  o.store_slug === store.slug &&
-                  o.category_slug !== ALCOHOL_CATEGORY_SLUG
-                )
-                .slice(0, 5);
+              const storeOffers = activeOffers.filter((o: any) =>
+                o.store_slug === store.slug &&
+                o.category_slug !== ALCOHOL_CATEGORY_SLUG
+              );
+
+              const visibleOffers = storeOffers.slice(0, 4);
+
               return (
-                <StoreSection key={store.id} store={store} offers={storeOffers} />
+                <StoreSection
+                  key={store.id}
+                  store={store}
+                  offers={visibleOffers}
+                  totalOffers={storeOffers.length}
+                />
               );
             })}
           </div>

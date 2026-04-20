@@ -1,7 +1,7 @@
 import { StoreScraper, RawOffer } from './types';
 import { parsePrice } from '../lib/priceParser';
 
-const TARGET_PRODUCTS   = 75;
+const TARGET_PRODUCTS   = 100;
 
 type UnimarcSeller = {
   price?: string | number;

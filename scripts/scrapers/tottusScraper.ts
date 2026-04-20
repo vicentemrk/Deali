@@ -10,7 +10,7 @@ const TOTTUS_WIDGET_IDS = [
   'ecf69f65-32cb-4856-8fbc-4aef0ec572df',
 ];
 
-const TARGET_PRODUCTS = 75;
+const TARGET_PRODUCTS = 100;
 
 import { mergeUniqueOffers } from '../lib/mergeOffers';
 
@@ -120,7 +120,7 @@ export class TottusScraper implements StoreScraper {
         siteBase:     'https://www.tottus.cl',
         referer:      'https://www.tottus.cl/tottus-cl/content/ofertas-tottus?sid=HO_BH_OFE_498',
         logTag:       'TottusScraper',
-        minProducts:  75,
+        minProducts:  TARGET_PRODUCTS,
         concurrency:  3,
         extraHeaders: cookieHeader ? { Cookie: cookieHeader } : undefined,
       });

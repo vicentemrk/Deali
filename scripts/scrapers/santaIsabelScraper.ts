@@ -2,7 +2,7 @@ import { StoreScraper, RawOffer } from './types';
 import { fetchVtexMultiCategory } from './vtexCategoryFetcher';
 import { scrapeStoreWithPlaywrightFallback } from './playwrightStoreFallback';
 
-const TARGET_PRODUCTS = 75;
+const TARGET_PRODUCTS = 100;
 
 async function discoverPromotionFilters(offersUrl: string, logTag: string): Promise<string[]> {
   try {
@@ -79,7 +79,7 @@ export class SantaIsabelScraper implements StoreScraper {
     if (offers.length < TARGET_PRODUCTS) {
       const broadOffers = await fetchVtexMultiCategory({
         ...commonConfig,
-        minProducts: 80,
+        minProducts: TARGET_PRODUCTS,
         maxPages: 6,
         pageSize: 50,
         pageDelayMs: 400,
@@ -104,7 +104,7 @@ export class SantaIsabelScraper implements StoreScraper {
           'https://www.santaisabel.cl/supermercado/lacteos-y-huevos',
           'https://www.santaisabel.cl/supermercado/bebidas-y-licores',
         ],
-        maxProducts: 75,
+        maxProducts: TARGET_PRODUCTS,
       });
 
       offers = mergeUniqueOffers(offers, playwrightOffers);

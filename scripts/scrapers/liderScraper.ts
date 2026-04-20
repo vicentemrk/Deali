@@ -3,7 +3,7 @@ import { fetchVtexMultiCategory } from './vtexCategoryFetcher';
 import { scrapeStoreWithPlaywrightFallback } from './playwrightStoreFallback';
 import { parseCLP } from '../lib/priceParser';
 
-const TARGET_PRODUCTS = 75;
+const TARGET_PRODUCTS = 100;
 
 import { mergeUniqueOffers } from '../lib/mergeOffers';
 
@@ -125,7 +125,7 @@ export class LiderScraper implements StoreScraper {
           pathPrefix:   '/supermercado',
         referer:      'https://super.lider.cl/',
           logTag:       'LiderScraper',
-          minProducts:  75,
+          minProducts:  TARGET_PRODUCTS,
           concurrency:  3,
           extraHeaders: cookieHeader ? { Cookie: cookieHeader } : undefined,
         });
@@ -142,7 +142,7 @@ export class LiderScraper implements StoreScraper {
           logTag: 'LiderScraper',
           baseUrl: 'https://www.lider.cl',
           categoryUrls: LIDER_PROMO_URLS,
-          maxProducts: 75,
+          maxProducts: TARGET_PRODUCTS,
         });
 
         if (playwrightOffers.length > 0) {

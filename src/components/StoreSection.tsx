@@ -1,6 +1,5 @@
 import React from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { ArrowRight } from 'lucide-react';
 import { OfferCard } from './OfferCard';
 
@@ -9,12 +8,12 @@ interface StoreSectionProps {
     name: string;
     slug: string;
     color_hex: string;
-    logo_url?: string;
   };
   offers: any[];
+  totalOffers: number;
 }
 
-export function StoreSection({ store, offers }: StoreSectionProps) {
+export function StoreSection({ store, offers, totalOffers }: StoreSectionProps) {
   if (!offers || offers.length === 0) return null;
 
   return (
@@ -28,24 +27,6 @@ export function StoreSection({ store, offers }: StoreSectionProps) {
         }}
       >
         <div className="flex items-center gap-3">
-          {/* Punto de color de la tienda */}
-          <div
-            className="w-3 h-3 rounded-full flex-shrink-0"
-            style={{ backgroundColor: store.color_hex }}
-          />
-
-          {store.logo_url && (
-            <div className="relative w-8 h-8 rounded-full overflow-hidden flex-shrink-0">
-              <Image
-                src={store.logo_url}
-                alt={store.name}
-                fill
-                sizes="32px"
-                className="object-cover"
-              />
-            </div>
-          )}
-
           <h2
             className="text-lg font-bold"
             style={{ color: store.color_hex }}
@@ -59,7 +40,7 @@ export function StoreSection({ store, offers }: StoreSectionProps) {
           className="flex items-center gap-1.5 text-sm font-semibold transition-colors hover:opacity-80"
           style={{ color: 'var(--text-muted)' }}
         >
-          Ver todas
+          VER {totalOffers} OFERTAS
           <ArrowRight className="w-4 h-4" />
         </Link>
       </div>

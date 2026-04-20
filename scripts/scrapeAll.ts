@@ -21,7 +21,7 @@ dotenv.config({ path: path.join(__dirname, '..', '.env.local') });
 // CONSTANTS
 // ---------------------------------------------------------------------------
 
-const MIN_SCRAPE_LIMIT = 25;
+const MIN_SCRAPE_LIMIT = 100;
 const MAX_SCRAPE_LIMIT = 120;
 
 function parseScrapeLimit(): number {

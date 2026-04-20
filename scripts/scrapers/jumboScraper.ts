@@ -11,7 +11,7 @@ import {
   sleepWithBackoff,
 } from '../lib/httpResilience';
 
-const TARGET_PRODUCTS = 75;
+const TARGET_PRODUCTS = 100;
 const PROMO_OFFERS_URL = 'https://www.jumbo.cl/jumbo-ofertas';
 const JUMBO_BFF_ENDPOINT = 'https://bff.jumbo.cl/catalog/plp';
 const JUMBO_BFF_APIKEY = process.env.JUMBO_BFF_APIKEY || 'be-reg-groceries-jumbo-catalog-w54byfvkmju5';
@@ -408,7 +408,7 @@ export class JumboScraper implements StoreScraper {
     if (offers.length < TARGET_PRODUCTS) {
       const broadOffers = await fetchVtexMultiCategory({
         ...commonConfig,
-        minProducts: 80,
+        minProducts: TARGET_PRODUCTS,
         maxPages: 6,
         pageSize: 50,
         pageDelayMs: 400,
@@ -434,7 +434,7 @@ export class JumboScraper implements StoreScraper {
           'https://www.jumbo.cl/supermercado/lacteos-y-huevos',
           'https://www.jumbo.cl/supermercado/bebidas-y-licores',
         ],
-        maxProducts: 75,
+        maxProducts: TARGET_PRODUCTS,
       });
 
       offers = mergeUniqueOffers(offers, playwrightOffers);
