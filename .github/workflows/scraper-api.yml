@@ -7,6 +7,7 @@ name: Scraper — API (Jumbo, Tottus, Líder, Santa Isabel)
 on:
   schedule:
     - cron: "0 */3 * * *"  # Cada 3 horas cada día
+  workflow_dispatch:
 
 # Secrets requeridos en Settings → Secrets → Actions:
 #   SUPABASE_URL            → URL del proyecto Supabase
@@ -18,7 +19,7 @@ env:
 jobs:
   scrape-api:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -41,12 +42,16 @@ jobs:
       # Sin Playwright install — estos scrapers usan solo fetch()
       - name: Scrape Jumbo
         run: npx tsx scripts/scrapeAll.ts --store jumbo
+        continue-on-error: true
 
       - name: Scrape Líder
         run: npx tsx scripts/scrapeAll.ts --store lider
+        continue-on-error: true
 
       - name: Scrape Tottus
         run: npx tsx scripts/scrapeAll.ts --store tottus
+        continue-on-error: true
 
       - name: Scrape Santa Isabel
         run: npx tsx scripts/scrapeAll.ts --store santa-isabel
+        continue-on-error: true

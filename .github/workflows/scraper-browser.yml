@@ -43,6 +43,8 @@ jobs:
 
       - name: Scrape Unimarc
         run: npx tsx scripts/scrapeAll.ts --store unimarc
+        continue-on-error: true
 
       - name: Scrape Acuenta
         run: npx tsx scripts/scrapeAll.ts --store acuenta
+        continue-on-error: true

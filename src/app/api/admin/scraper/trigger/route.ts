@@ -24,7 +24,8 @@ function getErrorMessage(error: unknown): string {
  * Authentication: Required (admin/authenticated user via middleware)
  */
 
-const VALID_STORES = ['jumbo', 'lider', 'unimarc', 'acuenta', 'tottus', 'santa-isabel'];
+const VALID_STORES = ['jumbo', 'lider', 'unimarc', 'acuenta', 'tottus', 'santa-isabel'] as const;
+const VALID_STORE_SET = new Set<string>(VALID_STORES);
 const runningJobs = new Map<string, { startedAt: Date; status: string }>();
 const DEFAULT_EXECUTION_MODE = process.env.VERCEL ? 'queue' : 'local';
 const SCRAPER_EXECUTION_MODE = process.env.SCRAPER_EXECUTION_MODE || DEFAULT_EXECUTION_MODE;
@@ -34,6 +35,10 @@ const SCRAPER_EXECUTION_MODE = process.env.SCRAPER_EXECUTION_MODE || DEFAULT_EXE
  * Stores job status in runningJobs map for tracking
  */
 async function executeScraperInBackground(storeSlug?: string, requestId?: string) {
+  if (storeSlug && !VALID_STORE_SET.has(storeSlug)) {
+    throw new Error(`Invalid store slug for execution: ${storeSlug}`);
+  }
+
   const jobId = `${Date.now()}-${storeSlug || 'all'}`;
   const args = storeSlug
     ? ['tsx', 'scripts/scrapeAll.ts', '--store', storeSlug]
@@ -153,7 +158,7 @@ export async function POST(req: NextRequest) {
     // Validate store filter if provided
     const normalizedStore = storeSlug?.trim().toLowerCase();
 
-    if (normalizedStore && !VALID_STORES.includes(normalizedStore)) {
+    if (normalizedStore && !VALID_STORE_SET.has(normalizedStore)) {
       return apiError(
         'INVALID_STORE',
         `Invalid store. Must be one of: ${VALID_STORES.join(', ')}`,

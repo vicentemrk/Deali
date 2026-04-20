@@ -3,6 +3,8 @@ import { StoreScraper, RawOffer } from './types';
 import { parsePrice, parsePrices } from '../lib/priceParser';
 
 const TARGET_PRODUCTS   = 75;
+const MAX_CAMPAIGN_PAGES = 3;
+const MAX_DISCOVERED_CAMPAIGNS = 10;
 
 type ExtractedCard = {
   productName: string;
@@ -17,25 +19,64 @@ const CARD_FIELD_TIMEOUT_MS = 1_200;
 /**
  * AcuentaScraper — SMU Group
  *
- * Usa campañas explícitas provistas por el usuario:
- *  - /ca/luka-dos-y-tres-lukas/60 (páginas 1..10)
- *  - /ca/canasta-ahorradora/400 (páginas 1..2)
+ * Descubre campañas activas desde /ofertas y scrapea cada una con paginacion.
  */
 export class AcuentaScraper implements StoreScraper {
   storeSlug = 'acuenta';
 
   private readonly BASE_URL = 'https://www.acuenta.cl';
-
-  private readonly CAMPAIGN_URLS = [
-    'https://www.acuenta.cl/ca/luka-dos-y-tres-lukas/60',
-    'https://www.acuenta.cl/ca/luka-dos-y-tres-lukas/60?currentPage=2',
-    'https://www.acuenta.cl/ca/luka-dos-y-tres-lukas/60?currentPage=3',
-    'https://www.acuenta.cl/ca/canasta-ahorradora/400',
+  private readonly OFFERS_URL = `${this.BASE_URL}/ofertas`;
+  private readonly FALLBACK_CAMPAIGN_URLS = [
+    `${this.BASE_URL}/ca/luka-dos-y-tres-lukas/60`,
+    `${this.BASE_URL}/ca/canasta-ahorradora/400`,
+    `${this.BASE_URL}/ca/ofertas-semanales/200`,
   ];
+
+  private buildCampaignPageUrl(campaignUrl: string, pageNumber: number): string {
+    if (pageNumber <= 1) return campaignUrl;
+
+    const url = new URL(campaignUrl);
+    url.searchParams.set('currentPage', String(pageNumber));
+    return url.toString();
+  }
 
   private parseCategoryHintFromUrl(url: string): string | null {
     const match = url.match(/\/ca\/([^/?#]+)/i);
     return match?.[1] ?? null;
+  }
+
+  private async discoverCampaignUrls(page: any): Promise<string[]> {
+    try {
+      await page.goto(this.OFFERS_URL, { waitUntil: 'domcontentloaded', timeout: 25_000 });
+      await page.waitForSelector('a[href*="/ca/"]', { timeout: 10_000 }).catch(() => undefined);
+
+      const discovered = await page.$$eval('a[href*="/ca/"]', (elements: Element[]) => {
+        const urls = new Set<string>();
+
+        for (const element of elements) {
+          const href = (element as HTMLAnchorElement).href || '';
+          if (!href.includes('/ca/')) continue;
+          if (href.includes('?')) continue;
+
+          const normalized = href.replace(/\/$/, '');
+          urls.add(normalized);
+        }
+
+        return Array.from(urls);
+      });
+
+      if (discovered.length === 0) {
+        console.warn('[AcuentaScraper] Campaign discovery returned no URLs, using fallback list.');
+        return this.FALLBACK_CAMPAIGN_URLS;
+      }
+
+      const limited = discovered.slice(0, MAX_DISCOVERED_CAMPAIGNS);
+      console.log(`[AcuentaScraper] Discovered ${limited.length} active campaigns.`);
+      return limited;
+    } catch (error: any) {
+      console.warn(`[AcuentaScraper] Campaign discovery failed: ${error.message}`);
+      return this.FALLBACK_CAMPAIGN_URLS;
+    }
   }
 
   private parseMoney(raw: string | null | undefined): number {
@@ -166,88 +207,94 @@ export class AcuentaScraper implements StoreScraper {
   async scrape(): Promise<RawOffer[]> {
     const offers: RawOffer[] = [];
     const seenNames = new Set<string>();
+    const browser = await chromium.launch({ headless: true });
+    const context = await browser.newContext({
+      userAgent:
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
+        '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      viewport: { width: 1440, height: 900 },
+      extraHTTPHeaders: { 'Accept-Language': 'es-CL,es;q=0.9' },
+    });
+    const page = await context.newPage();
 
-    for (const campaignUrl of this.CAMPAIGN_URLS) {
-      if (offers.length >= TARGET_PRODUCTS) break;
+    try {
+      const campaignUrls = await this.discoverCampaignUrls(page);
 
-      console.log(`[AcuentaScraper] → ${campaignUrl}`);
-
-      let browser: any;
-      let context: any;
-      let page: any;
-
-      try {
-        browser = await chromium.launch({ headless: true });
-        context = await browser.newContext({
-          userAgent:
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
-            '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-          viewport: { width: 1440, height: 900 },
-          extraHTTPHeaders: { 'Accept-Language': 'es-CL,es;q=0.9' },
-        });
-        page = await context.newPage();
-
-        try {
-          await page.goto(campaignUrl, { waitUntil: 'load', timeout: 15_000 });
-        } catch (gotoErr) {
-          // Fallback: try domcontentloaded with shorter timeout
-          try {
-            await Promise.race([
-              page.goto(campaignUrl, { waitUntil: 'domcontentloaded', timeout: 10_000 }),
-              new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8_000))
-            ]);
-          } catch {
-            console.warn(`[AcuentaScraper] Failed to load ${campaignUrl}, skipping...`);
-            continue;
-          }
-        }
-
-        await page.waitForTimeout(1_500);
-
-        const hasProducts = await Promise.race([
-          page.waitForSelector(
-            '[class*="StyledCard"], a.containerCard, [data-testid="card-name"], a[href*="/p/"]',
-            { timeout: 5_000 }
-          ).then(() => true).catch(() => false),
-          new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 6_000))
-        ]);
-
-        if (!hasProducts) {
-          console.warn(`[AcuentaScraper] No products found on ${campaignUrl}, skipping...`);
-          continue;
-        }
-
-        const extracted = await this.extractCards(page);
-        console.log(`[AcuentaScraper] ${campaignUrl}: ${extracted.length} cards`);
+      for (const campaignUrl of campaignUrls) {
+        if (offers.length >= TARGET_PRODUCTS) break;
 
         const categoryHint = this.parseCategoryHintFromUrl(campaignUrl);
 
-        for (const item of extracted) {
-          const key = item.productName.trim().toLowerCase();
-          if (seenNames.has(key)) continue;
-          seenNames.add(key);
-
-          if (!item.originalPrice || item.offerPrice >= item.originalPrice) continue;
-
-          offers.push({
-            productName: item.productName,
-            brand: null,
-            imageUrl: item.imageUrl,
-            offerUrl: item.offerUrl.startsWith('http') ? item.offerUrl : `${this.BASE_URL}${item.offerUrl}`,
-            offerPrice: item.offerPrice,
-            originalPrice: item.originalPrice,
-            categoryHint,
-          });
-
+        for (let pageNumber = 1; pageNumber <= MAX_CAMPAIGN_PAGES; pageNumber++) {
           if (offers.length >= TARGET_PRODUCTS) break;
+
+          const pageUrl = this.buildCampaignPageUrl(campaignUrl, pageNumber);
+          console.log(`[AcuentaScraper] -> ${pageUrl}`);
+
+          try {
+            await page.goto(pageUrl, { waitUntil: 'domcontentloaded', timeout: 20_000 });
+          } catch {
+            console.warn(`[AcuentaScraper] Failed to load ${pageUrl}, skipping page.`);
+            break;
+          }
+
+          await page.waitForTimeout(1_500);
+
+          const hasProducts = await Promise.race([
+            page
+              .waitForSelector(
+                '[class*="StyledCard"], a.containerCard, [data-testid="card-name"], a[href*="/p/"]',
+                { timeout: 5_000 }
+              )
+              .then(() => true)
+              .catch(() => false),
+            new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 6_000)),
+          ]);
+
+          if (!hasProducts) {
+            console.warn(`[AcuentaScraper] No products on ${pageUrl}, ending this campaign.`);
+            break;
+          }
+
+          const extracted = await this.extractCards(page);
+          if (extracted.length === 0) {
+            console.warn(`[AcuentaScraper] Empty card extraction on ${pageUrl}, ending this campaign.`);
+            break;
+          }
+
+          console.log(`[AcuentaScraper] ${pageUrl}: ${extracted.length} cards`);
+
+          let addedForPage = 0;
+          for (const item of extracted) {
+            const key = item.productName.trim().toLowerCase();
+            if (seenNames.has(key)) continue;
+            seenNames.add(key);
+
+            if (!item.originalPrice || item.offerPrice >= item.originalPrice) continue;
+
+            offers.push({
+              productName: item.productName,
+              brand: null,
+              imageUrl: item.imageUrl,
+              offerUrl: item.offerUrl.startsWith('http') ? item.offerUrl : `${this.BASE_URL}${item.offerUrl}`,
+              offerPrice: item.offerPrice,
+              originalPrice: item.originalPrice,
+              categoryHint,
+            });
+
+            addedForPage++;
+            if (offers.length >= TARGET_PRODUCTS) break;
+          }
+
+          if (addedForPage === 0) {
+            break;
+          }
         }
-      } catch (navError: any) {
-        console.warn(`[AcuentaScraper] Failed to scrape ${campaignUrl}: ${navError.message}`);
-      } finally {
-        await page?.close().catch(() => undefined);
-        await context?.close().catch(() => undefined);
-        await browser?.close().catch(() => undefined);
       }
+    } finally {
+      await page.close().catch(() => undefined);
+      await context.close().catch(() => undefined);
+      await browser.close().catch(() => undefined);
     }
 
     console.log(`[AcuentaScraper] ✅ Total: ${offers.length} offers.`);

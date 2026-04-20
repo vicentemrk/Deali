@@ -11,6 +11,8 @@ const TOTTUS_WIDGET_IDS = [
 ];
 
 const TARGET_PRODUCTS = 100;
+const NEXT_DATA_MAX_PAGES = 7;
+const TOTTUS_OFFERS_PATH = '/tottus-cl/ofertas';
 
 import { mergeUniqueOffers } from '../lib/mergeOffers';
 
@@ -20,6 +22,162 @@ const TOTTUS_ZONES = [
   'PCL2269', 'PCL4976', 'PCL651', 'LEG_TOTTUS_DOMINICOS_1', 'PCL596', 'PCL226', 'PCL108',
   'PCL2288', 'PCL3232', 'PCL3145', 'PCL1394', 'PCL5090', 'PCL5234', 'PCL2792',
 ].join(',');
+
+interface NextDataVariant {
+  id?: string;
+  price?: {
+    originalPrice?: number | string;
+    specialPrice?: number | string;
+  };
+  medias?: Array<{ url?: string }>;
+}
+
+interface NextDataProduct {
+  displayName?: string;
+  brand?: { name?: string } | string;
+  variants?: NextDataVariant[];
+  categoriesHierarchy?: string[];
+  slug?: string;
+}
+
+function normalizeTottusPrice(value: unknown): number {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) && value > 0 ? Math.round(value) : 0;
+  }
+
+  if (typeof value === 'string') {
+    return parseCLP(value);
+  }
+
+  return 0;
+}
+
+function extractProductsFromNextData(nextData: any): NextDataProduct[] {
+  const props = nextData?.props?.pageProps;
+
+  const candidates = [
+    props?.initialData?.products,
+    props?.categoryData?.products,
+    props?.searchData?.results,
+    props?.data?.products,
+    props?.products,
+    props?.offerData?.products,
+  ];
+
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate) && candidate.length > 0) {
+      return candidate;
+    }
+  }
+
+  return [];
+}
+
+function parseNextDataProduct(product: NextDataProduct, seen: Set<string>): RawOffer | null {
+  const variant = product.variants?.[0];
+  if (!variant) return null;
+
+  const productName = (product.displayName || '').trim();
+  if (!productName) return null;
+
+  const dedupeKey = productName.toLowerCase();
+  if (seen.has(dedupeKey)) return null;
+
+  const originalPrice = normalizeTottusPrice(variant.price?.originalPrice);
+  const offerPrice = normalizeTottusPrice(variant.price?.specialPrice) || originalPrice;
+  if (!offerPrice || !originalPrice || offerPrice >= originalPrice) return null;
+
+  const imageUrl = variant.medias?.[0]?.url || '';
+  const slug = (product.slug || variant.id || '').trim();
+  const categoryHint = product.categoriesHierarchy?.[0]?.split('>')?.[0]?.trim() || null;
+
+  seen.add(dedupeKey);
+
+  return {
+    productName,
+    brand: typeof product.brand === 'string' ? product.brand : product.brand?.name || null,
+    imageUrl,
+    offerUrl: slug
+      ? `https://www.tottus.cl/tottus-cl/articulo/${slug}`
+      : 'https://www.tottus.cl/tottus-cl/ofertas',
+    offerPrice,
+    originalPrice,
+    categoryHint,
+  };
+}
+
+async function fetchTottusNextDataPage(page: number): Promise<NextDataProduct[]> {
+  const url = `https://www.tottus.cl${TOTTUS_OFFERS_PATH}?page=${page}&sortBy=discountDesc`;
+
+  const response = await fetch(url, {
+    headers: {
+      'User-Agent':
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
+        '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      Accept: 'text/html,application/xhtml+xml',
+      'Accept-Language': 'es-CL,es;q=0.9',
+      Referer: 'https://www.tottus.cl',
+    },
+    signal: AbortSignal.timeout(20_000),
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+
+  const html = await response.text();
+  const nextDataMatch = html.match(/<script[^>]*id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/i);
+  if (!nextDataMatch?.[1]) {
+    console.warn(`[TottusScraper] Missing __NEXT_DATA__ on page ${page}`);
+    return [];
+  }
+
+  try {
+    const nextData = JSON.parse(nextDataMatch[1]);
+    return extractProductsFromNextData(nextData);
+  } catch {
+    console.warn(`[TottusScraper] Invalid __NEXT_DATA__ on page ${page}`);
+    return [];
+  }
+}
+
+async function fetchTottusOffersFromNextData(maxPages = NEXT_DATA_MAX_PAGES): Promise<RawOffer[]> {
+  const offers: RawOffer[] = [];
+  const seen = new Set<string>();
+
+  for (let page = 1; page <= maxPages; page++) {
+    let products: NextDataProduct[] = [];
+
+    try {
+      products = await fetchTottusNextDataPage(page);
+    } catch (error: any) {
+      console.warn(`[TottusScraper] __NEXT_DATA__ page ${page} failed: ${error.message}`);
+      break;
+    }
+
+    if (products.length === 0) {
+      break;
+    }
+
+    let added = 0;
+    for (const product of products) {
+      const offer = parseNextDataProduct(product, seen);
+      if (offer) {
+        offers.push(offer);
+        added++;
+      }
+    }
+
+    console.log(`[TottusScraper] __NEXT_DATA__ page ${page}: ${products.length} raw -> ${added} discounted`);
+
+    if (offers.length >= TARGET_PRODUCTS) {
+      break;
+    }
+  }
+
+  console.log(`[TottusScraper] __NEXT_DATA__ total: ${offers.length} offers.`);
+  return offers;
+}
 
 async function fetchTottusRecommendedOffers(cookieHeader?: string): Promise<RawOffer[]> {
   const offers: RawOffer[] = [];
@@ -108,7 +266,12 @@ export class TottusScraper implements StoreScraper {
     const cookieHeader = process.env.TOTTUS_COOKIE?.trim();
     const useLegacyVtex = process.env.TOTTUS_USE_VTEX !== '0';
 
-    let offers = await fetchTottusRecommendedOffers(cookieHeader);
+    let offers = await fetchTottusOffersFromNextData();
+
+    if (offers.length < TARGET_PRODUCTS) {
+      const recommendedOffers = await fetchTottusRecommendedOffers(cookieHeader);
+      offers = mergeUniqueOffers(offers, recommendedOffers);
+    }
 
     if (useLegacyVtex && offers.length < TARGET_PRODUCTS) {
       const vtexOffers = await fetchVtexMultiCategory({
