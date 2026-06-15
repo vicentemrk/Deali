@@ -58,7 +58,8 @@ async function fetchStores(): Promise<Store[]> {
     .select('id, slug, name, color, logo_url')
     .order('name')
 
-  if (error) throw new Error(error.message)
+  // Error tolerante: si la tabla no existe aún, devuelve lista vacía
+  if (error) return []
   return (data ?? []) as Store[]
 }
 
@@ -78,7 +79,8 @@ async function fetchCategories(): Promise<Category[]> {
     .select('id, slug, name, icon')
     .order('name')
 
-  if (error) throw new Error(error.message)
+  // Error tolerante: si la tabla no existe aún, devuelve lista vacía
+  if (error) return []
   return (data ?? []) as Category[]
 }
 

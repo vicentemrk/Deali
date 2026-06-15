@@ -31,7 +31,6 @@ Deali/
 | CI/CD | GitHub Actions |
 | Frontend (WIP) | React 18 + Vite 5 + TailwindCSS v4 + PWA |
 
-
 ## Licencia
 
 MIT

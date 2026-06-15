@@ -125,12 +125,11 @@ class VtexBaseScraper(BaseScraper):
         raise NotImplementedError
 
     def _build_url(self, page_from: int, page_to: int) -> str:
-        """Construye la URL de la API VTEX para una página de ofertas."""
+        """Construye la URL de la API VTEX para una página de productos con descuento."""
         return (
             f"https://{self.vtex_domain}.vteximg.com.br"
             f"/api/catalog_system/pub/products/search"
             f"?O=OrderByBestDiscountDESC"
-            f"&fq=specificationFilter_40:Oferta"
             f"&_from={page_from}&_to={page_to}"
         )
 

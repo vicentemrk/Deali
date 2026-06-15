@@ -13,6 +13,7 @@ from scrapers.ingest import ingest
 from scrapers.vtex.jumbo import JumboScraper
 from scrapers.vtex.lider import LiderScraper
 from scrapers.vtex.santa_isabel import SantaIsabelScraper
+from scrapers.vtex.unimarc import UnimarScraper
 
 # Logging estructurado (legible en GitHub Actions y en Fly.io)
 structlog.configure(
@@ -27,8 +28,9 @@ log = structlog.get_logger(__name__)
 
 SCRAPERS = [
     JumboScraper(),
-    LiderScraper(),
     SantaIsabelScraper(),
+    UnimarScraper(),
+    # LiderScraper(),  # Líder no usa VTEX — requiere browser scraper
 ]
 
 

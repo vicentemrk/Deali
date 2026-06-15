@@ -26,8 +26,10 @@ export function SearchBar({
 
   function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    if (navigateOnSubmit && value.trim()) {
-      navigate(`/buscar?q=${encodeURIComponent(value.trim())}`)
+    // When used as hero (navigateOnSubmit), use the ref value directly
+    const query = value.trim() || (inputRef.current?.value ?? '').trim()
+    if (navigateOnSubmit && query) {
+      navigate(`/buscar?q=${encodeURIComponent(query)}`)
     }
   }
 
@@ -42,11 +44,22 @@ export function SearchBar({
       role="search"
       className="relative w-full"
     >
-      {/* Icono lupa */}
-      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[--color-text-muted] pointer-events-none" aria-hidden="true">
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+      {/* Icono lupa — Iconsax Bulk */}
+      <span
+        className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none"
+        style={{ color: 'var(--color-text-muted)' }}
+        aria-hidden="true"
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+          <path
+            opacity="0.4"
+            d="M11.5 21C16.7467 21 21 16.7467 21 11.5C21 6.25329 16.7467 2 11.5 2C6.25329 2 2 6.25329 2 11.5C2 16.7467 6.25329 21 11.5 21Z"
+            fill="currentColor"
+          />
+          <path
+            d="M21.3 22C21.12 22 20.94 21.93 20.81 21.8L18.95 19.94C18.68 19.67 18.68 19.23 18.95 18.95C19.22 18.68 19.66 18.68 19.94 18.95L21.8 20.81C22.07 21.08 22.07 21.52 21.8 21.8C21.66 21.93 21.48 22 21.3 22Z"
+            fill="currentColor"
+          />
         </svg>
       </span>
 

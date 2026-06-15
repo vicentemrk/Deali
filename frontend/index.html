@@ -7,24 +7,96 @@
     <!-- SEO -->
     <title>Deali — Ofertas de Supermercados Chile</title>
     <meta name="description" content="Compara las mejores ofertas de Jumbo, Líder, Tottus, Unimarc, aCuenta y Santa Isabel. Actualizado cada 30 minutos." />
-    <meta name="theme-color" content="#0f172a" />
+    <meta name="theme-color" content="#92400E" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0C0900" media="(prefers-color-scheme: dark)" />
 
-    <!-- Favicon placeholder -->
+    <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 
-    <!-- Google Fonts: Inter -->
+    <!-- ── Fonts: Mineral Dorado ────────────────────────────────────── -->
+    <!-- Preconnect critical para Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+    <!-- Josefin Sans 600/700 (display) — non-render-blocking -->
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@600;700&display=swap"
       rel="stylesheet"
+      media="print"
+      onload="this.media='all'"
     />
+    <noscript>
+      <link href="https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@600;700&display=swap" rel="stylesheet" />
+    </noscript>
+
+    <!-- Raleway 400/500/600 (body) — non-render-blocking -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Raleway:wght@400;500;600&display=swap"
+      rel="stylesheet"
+      media="print"
+      onload="this.media='all'"
+    />
+    <noscript>
+      <link href="https://fonts.googleapis.com/css2?family=Raleway:wght@400;500;600&display=swap" rel="stylesheet" />
+    </noscript>
+
+    <!-- Geist Mono 400/500 (precios) — non-render-blocking -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+      media="print"
+      onload="this.media='all'"
+    />
+    <noscript>
+      <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    </noscript>
+
+    <!-- ── Critical inline CSS: prevent FOUC ───────────────────────── -->
+    <style>
+      /* Fallback system fonts para evitar CLS */
+      body {
+        background-color: #F7F3EE;
+        color: #1C1207;
+        font-family: system-ui, -apple-system, sans-serif;
+        margin: 0;
+      }
+      @media (prefers-color-scheme: dark) {
+        body {
+          background-color: #0C0900;
+          color: #FEF9EC;
+        }
+      }
+      /* Loading spinner mientras carga React */
+      #root:empty {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+      }
+      #root:empty::after {
+        content: '';
+        width: 28px;
+        height: 28px;
+        border: 2px solid #E5DDD4;
+        border-top-color: #92400E;
+        border-radius: 50%;
+        animation: spin 0.7s linear infinite;
+      }
+      @media (prefers-color-scheme: dark) {
+        #root:empty::after {
+          border-color: #2A2015;
+          border-top-color: #FCD34D;
+        }
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
 
     <!-- PWA -->
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Deali" />
   </head>
   <body>
     <div id="root"></div>

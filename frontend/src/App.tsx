@@ -5,9 +5,22 @@ import { SearchPage } from './pages/SearchPage'
 
 function NotFound() {
   return (
-    <main id="main-content" className="max-w-7xl mx-auto px-4 py-20 text-center">
-      <h1 className="text-4xl font-bold mb-3">404</h1>
-      <p className="text-[--color-text-secondary] mb-6">Página no encontrada</p>
+    <main id="main-content" className="max-w-7xl mx-auto px-4 py-20 text-center navbar-offset">
+      <h1
+        style={{
+          fontFamily: 'var(--font-display)',
+          fontSize: '4rem',
+          fontWeight: 700,
+          letterSpacing: '0.04em',
+          color: 'var(--color-accent)',
+          marginBottom: '0.75rem',
+        }}
+      >
+        404
+      </h1>
+      <p style={{ fontFamily: 'var(--font-sans)', color: 'var(--color-text-muted)', marginBottom: '1.5rem' }}>
+        Página no encontrada
+      </p>
       <a href="/" className="btn-primary inline-flex">Volver al inicio</a>
     </main>
   )
