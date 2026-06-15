@@ -1,14 +1,20 @@
 # ─── Core ───────────────────────────────────────────────
 supabase==2.15.1
 httpx==0.28.1
-selectolax==0.3.26
+selectolax==0.4.10      # 0.4.10+ tiene wheel para Python 3.14
 
 # ─── Browser scraping ───────────────────────────────────
 playwright==1.52.0
 
-# ─── Anti-fingerprint fallback (install separately if needed) ───
-# camoufox[geoip]==0.4.6
-# curl-cffi==0.7.4
+# ─── Anti-fingerprint fallbacks ─────────────────────────
+# curl_cffi: simula fingerprint TLS de Chrome/Firefox a nivel TCP
+# Activa cuando httpx es bloqueado por JA3 fingerprinting (ej: Cencosud CDN)
+curl-cffi==0.7.4
+
+# camoufox: fork de Firefox con spoofing canvas/WebGL/hardware
+# Activa cuando Playwright básico es detectado por Cloudflare avanzado
+# Instalar con: uv pip install "camoufox[geoip]"
+# camoufox[geoip]==0.4.11
 
 # ─── Data processing ────────────────────────────────────
 pydantic==2.11.7

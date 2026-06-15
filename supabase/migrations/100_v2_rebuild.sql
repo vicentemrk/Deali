@@ -16,7 +16,7 @@ DROP TABLE IF EXISTS
   scrape_jobs
 CASCADE;
 
-DROP VIEW IF EXISTS activa_offers_view CASCADE;
+DROP VIEW IF EXISTS active_offers_view CASCADE;
 DROP FUNCTION IF EXISTS get_stores_offer_counts() CASCADE;
 DROP FUNCTION IF EXISTS get_price_history(UUID) CASCADE;
 
@@ -169,7 +169,7 @@ SELECT
     p.category_id,
     s.name            AS store_name,
     s.slug            AS store_slug,
-    s.color_hex       AS store_color_hex,
+    s.color_hex       AS store_color,
     s.logo_url        AS store_logo_url,
     s.scraper_type,
     COALESCE(c.name, 'General')   AS category_name,
