@@ -1,50 +1,50 @@
-name: Scraper — Browser (Unimarc, Acuenta)
-
-# Scrapers Playwright: requieren browser install (~400MB), más lentos (~10-12 min/run)
-# Cada 6 horas → 4 runs/día es suficiente para datos razonablemente frescos
-# Consumo estimado: 12 min × 4 runs/día × 30 días = 1.440 min/mes
-#
-# Nota: Tottus fue migrado a VTEX API — ver scraper-api.yml
+name: Scrapers Browser
 
 on:
   schedule:
-    - cron: "0 */6 * * *"  # 00:00, 06:00, 12:00, 18:00 UTC
+    # Cada 6 horas — browser scrapers son más lentos y pesados que VTEX
+    - cron: "0 */6 * * *"
   workflow_dispatch:
-
-env:
-  NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-  SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
 jobs:
   scrape-browser:
+    name: Browser — Tottus / Unimarc / aCuenta
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 45    # Playwright puede tardar bastante en CI
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Validate secrets
-        run: |
-          [ -z "$NEXT_PUBLIC_SUPABASE_URL" ] && echo "::error::SUPABASE_URL secret missing" && exit 1
-          [ -z "$SUPABASE_SERVICE_ROLE_KEY" ] && echo "::error::SUPABASE_SERVICE_ROLE_KEY secret missing" && exit 1
-          echo "✅ Secrets OK"
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          node-version: '20'
-          cache: 'npm'
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: backend/requirements.txt
 
-      - name: Install Dependencies
-        run: npm ci
+      - name: Install Python dependencies
+        run: |
+          cd backend
+          pip install -r requirements.txt
 
-      - name: Install Playwright Chromium
-        run: npx playwright install chromium --with-deps
+      - name: Install Playwright browsers
+        run: |
+          cd backend
+          python -m playwright install chromium --with-deps
 
-      - name: Scrape Unimarc
-        run: npx tsx scripts/scrapeAll.ts --store unimarc
-        continue-on-error: true
-
-      - name: Scrape Acuenta
-        run: npx tsx scripts/scrapeAll.ts --store acuenta
-        continue-on-error: true
+      - name: Run browser scrapers
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+          TOTTUS_COOKIE: ${{ secrets.TOTTUS_COOKIE }}
+          LIDER_COOKIE: ${{ secrets.LIDER_COOKIE }}
+          UNIMARC_COOKIE: ${{ secrets.UNIMARC_COOKIE }}
+          ACUENTA_COOKIE: ${{ secrets.ACUENTA_COOKIE }}
+          BROWSER_MAX_CONCURRENT: "1"
+          LOG_LEVEL: "INFO"
+        run: |
+          cd backend
+          python run_browser.py
