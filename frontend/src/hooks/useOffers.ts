@@ -5,18 +5,27 @@ import type { Offer, OffersFilters, PaginatedOffers, Store, Category } from '../
 // ─── Ofertas ─────────────────────────────────────────────────────────────────
 
 async function fetchOffers(filters: OffersFilters): Promise<PaginatedOffers> {
-  const { search, store_slug, category_slug, min_discount, page = 1, page_size = 40 } = filters
+  const { search, store_slug, category_slug, min_discount, sort_by = 'discount_desc', page = 1, page_size = 40 } = filters
   const from = (page - 1) * page_size
   const to = from + page_size - 1
 
   let query = supabase
     .from('active_offers_view')
     .select('*', { count: 'exact' })
-    .order('discount_pct', { ascending: false })
     .range(from, to)
 
+  // Dynamic sort order
+  if (sort_by === 'price_asc') {
+    query = query.order('offer_price', { ascending: true })
+  } else if (sort_by === 'price_desc') {
+    query = query.order('offer_price', { ascending: false })
+  } else {
+    // default: highest discount first
+    query = query.order('discount_pct', { ascending: false })
+  }
+
   if (search) {
-    // Búsqueda full-text usando ilike — pg_trgm ya indexado en el schema v2
+    // Full-text search via ilike — pg_trgm index on schema v2
     query = query.ilike('product_name', `%${search}%`)
   }
   if (store_slug) {

@@ -3,6 +3,7 @@ import { OfferCard } from '../components/OfferCard'
 import { SkeletonGrid } from '../components/SkeletonCard'
 import { useOffers, useStores } from '../hooks/useOffers'
 import { useState } from 'react'
+import type { OffersSortBy } from '../types'
 
 const STORE_FILTERS = [
   { slug: '', label: 'Todas' },
@@ -20,6 +21,25 @@ const DISCOUNT_FILTERS = [
   { value: 30, label: '+30%' },
   { value: 40, label: '+40%' },
   { value: 50, label: '+50%' },
+]
+
+const CATEGORY_FILTERS = [
+  { slug: '',                label: 'Todas',             emoji: '🛒' },
+  { slug: 'frutas-verduras', label: 'Frutas y Verduras',  emoji: '🥦' },
+  { slug: 'carnes-pescados', label: 'Carnes y Pescados',  emoji: '🥩' },
+  { slug: 'lacteos-huevos',  label: 'Lácteos y Huevos',  emoji: '🥛' },
+  { slug: 'panaderia',       label: 'Panadería',          emoji: '🍞' },
+  { slug: 'bebidas',         label: 'Bebidas',            emoji: '🧃' },
+  { slug: 'snacks-dulces',   label: 'Snacks y Dulces',   emoji: '🍫' },
+  { slug: 'limpieza',        label: 'Limpieza',           emoji: '🧹' },
+  { slug: 'cuidado-personal',label: 'Cuidado Personal',  emoji: '🧴' },
+  { slug: 'congelados',      label: 'Congelados',         emoji: '🧊' },
+]
+
+const SORT_OPTIONS: { value: OffersSortBy; label: string }[] = [
+  { value: 'discount_desc', label: '↓ Mayor descuento' },
+  { value: 'price_asc',     label: '↑ Menor precio' },
+  { value: 'price_desc',    label: '↓ Mayor precio' },
 ]
 
 /** Icono empty state */
@@ -47,11 +67,15 @@ function IconError() {
 
 export function HomePage() {
   const [storeSlug, setStoreSlug] = useState('')
+  const [categorySlug, setCategorySlug] = useState('')
   const [minDiscount, setMinDiscount] = useState(0)
+  const [sortBy, setSortBy] = useState<OffersSortBy>('discount_desc')
 
   const { data, isLoading, isError } = useOffers({
     store_slug: storeSlug || undefined,
+    category_slug: categorySlug || undefined,
     min_discount: minDiscount || undefined,
+    sort_by: sortBy,
     page_size: 80,
   })
 
@@ -66,20 +90,6 @@ export function HomePage() {
         aria-labelledby="hero-heading"
       >
         <div className="max-w-2xl mx-auto">
-
-          {/* Eyebrow tag — high-end-visual-design */}
-          <div
-            className="inline-flex items-center gap-2 mb-6 px-3 py-1 rounded-full border text-[10px] uppercase tracking-[0.2em] font-display"
-            style={{
-              fontFamily: 'var(--font-display)',
-              borderColor: 'var(--color-border-hover)',
-              color: 'var(--color-accent)',
-              backgroundColor: 'var(--color-accent-glow)',
-            }}
-          >
-            <span className="live-dot" aria-hidden="true" />
-            Actualizado cada 30 minutos
-          </div>
 
           {/* H1 — Josefin Sans UPPERCASE */}
           <h1
@@ -114,7 +124,7 @@ export function HomePage() {
               lineHeight: 1.6,
             } as React.CSSProperties}
           >
-            Jumbo, Líder, Tottus, Unimarc y más — compara en un solo lugar
+            Jumbo, Líder, Tottus, Unimarc y más — compará en un solo lugar
           </p>
 
           {/* Contador de ofertas */}
@@ -158,7 +168,8 @@ export function HomePage() {
           >
             <SearchBar
               navigateOnSubmit
-              placeholder="¿Qué buscas? ej: leche, pan, aceite..."
+              placeholder="¿Qué buscás? ej: leche, pan, aceite..."
+              showButton
             />
           </div>
         </div>
@@ -168,8 +179,9 @@ export function HomePage() {
       <section className="max-w-7xl mx-auto px-5 pt-6 pb-4" aria-label="Filtros de búsqueda">
 
         {/* Chips de tienda — scroll horizontal en mobile */}
+        <p className="section-label">Tiendas</p>
         <div
-          className="scroll-x-hidden snap-chips flex gap-2 pb-2 mb-3"
+          className="scroll-x-hidden snap-chips flex gap-2 pb-2 mb-4"
           role="group"
           aria-label="Filtrar por tienda"
         >
@@ -205,23 +217,70 @@ export function HomePage() {
           })}
         </div>
 
-        {/* Chips de descuento */}
+        {/* Chips de categoría */}
+        <p className="section-label">Categorías</p>
         <div
-          className="scroll-x-hidden snap-chips flex gap-2 pb-1"
+          className="scroll-x-hidden snap-chips flex gap-2 pb-2 mb-4"
           role="group"
-          aria-label="Filtrar por descuento mínimo"
+          aria-label="Filtrar por categoría"
         >
-          {DISCOUNT_FILTERS.map((f) => (
-            <button
-              key={f.value}
-              className="filter-chip flex-shrink-0"
-              data-active={minDiscount === f.value ? 'true' : 'false'}
-              onClick={() => setMinDiscount(f.value)}
-              aria-pressed={minDiscount === f.value}
+          {CATEGORY_FILTERS.map((f) => {
+            const isActive = categorySlug === f.slug
+            return (
+              <button
+                key={f.slug}
+                className="filter-chip flex-shrink-0"
+                data-active={isActive ? 'true' : 'false'}
+                onClick={() => setCategorySlug(f.slug)}
+                aria-pressed={isActive}
+              >
+                <span aria-hidden="true">{f.emoji}</span>
+                {f.label}
+              </button>
+            )
+          })}
+        </div>
+
+        {/* Fila: chips de descuento + selector de orden */}
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <p className="section-label">Descuento mínimo</p>
+            <div
+              className="scroll-x-hidden snap-chips flex gap-2 pb-1"
+              role="group"
+              aria-label="Filtrar por descuento mínimo"
             >
-              {f.label}
-            </button>
-          ))}
+              {DISCOUNT_FILTERS.map((f) => (
+                <button
+                  key={f.value}
+                  className="filter-chip flex-shrink-0"
+                  data-active={minDiscount === f.value ? 'true' : 'false'}
+                  onClick={() => setMinDiscount(f.value)}
+                  aria-pressed={minDiscount === f.value}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Sort selector */}
+          <div style={{ flexShrink: 0 }}>
+            <p className="section-label" id="sort-label">Ordenar por</p>
+            <select
+              id="sort-select"
+              className="sort-select"
+              aria-labelledby="sort-label"
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as OffersSortBy)}
+            >
+              {SORT_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </section>
 
@@ -270,7 +329,7 @@ export function HomePage() {
               Error al cargar ofertas
             </p>
             <p style={{ fontFamily: 'var(--font-sans)', fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>
-              Verifica tu conexión e intenta nuevamente
+              Verificá tu conexión e intentá nuevamente
             </p>
           </div>
         )}
@@ -294,7 +353,7 @@ export function HomePage() {
               Sin ofertas con estos filtros
             </p>
             <p style={{ fontFamily: 'var(--font-sans)', fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>
-              Prueba cambiando la tienda o el descuento mínimo
+              Probá cambiando la tienda, categoría o el descuento mínimo
             </p>
           </div>
         )}

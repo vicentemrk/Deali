@@ -44,12 +44,16 @@ export interface Category {
   icon: string | null
 }
 
+/** Sort options for the offers grid */
+export type OffersSortBy = 'discount_desc' | 'price_asc' | 'price_desc'
+
 /** Parámetros para el hook useOffers */
 export interface OffersFilters {
   search?: string
   store_slug?: string
   category_slug?: string
   min_discount?: number
+  sort_by?: OffersSortBy
   page?: number
   page_size?: number
 }

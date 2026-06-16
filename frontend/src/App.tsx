@@ -1,5 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { Navbar } from './components/Navbar'
+import { Footer } from './components/Footer'
+import { ScrollToTop } from './components/ScrollToTop'
 import { HomePage } from './pages/HomePage'
 import { SearchPage } from './pages/SearchPage'
 
@@ -29,7 +31,7 @@ function NotFound() {
 export function App() {
   return (
     <BrowserRouter>
-      {/* Skip to content para a11y */}
+      {/* Skip to content — a11y */}
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-50 btn-primary"
@@ -44,6 +46,9 @@ export function App() {
         <Route path="/buscar" element={<SearchPage />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
+
+      <Footer />
+      <ScrollToTop />
     </BrowserRouter>
   )
 }

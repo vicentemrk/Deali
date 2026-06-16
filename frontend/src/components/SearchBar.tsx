@@ -4,10 +4,21 @@ import { useNavigate } from 'react-router-dom'
 interface SearchBarProps {
   value?: string
   onChange?: (value: string) => void
-  /** Si true, navega a /buscar?q= al submit (usado en Hero) */
+  /** If true, navigates to /buscar?q= on submit (used in Hero) */
   navigateOnSubmit?: boolean
   autoFocus?: boolean
   placeholder?: string
+  /** Show a visible search button inside the bar (hero variant) */
+  showButton?: boolean
+}
+
+function IconSearch() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="11" cy="11" r="8" />
+      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+    </svg>
+  )
 }
 
 export function SearchBar({
@@ -16,6 +27,7 @@ export function SearchBar({
   navigateOnSubmit = false,
   autoFocus = false,
   placeholder = 'Buscar ofertas... ej: leche, pan, coca-cola',
+  showButton = false,
 }: SearchBarProps) {
   const navigate = useNavigate()
   const inputRef = useRef<HTMLInputElement>(null)
@@ -35,7 +47,10 @@ export function SearchBar({
 
   function handleClear() {
     onChange?.('')
-    inputRef.current?.focus()
+    if (inputRef.current) {
+      inputRef.current.value = ''
+      inputRef.current.focus()
+    }
   }
 
   return (
@@ -44,23 +59,13 @@ export function SearchBar({
       role="search"
       className="relative w-full"
     >
-      {/* Icono lupa — Iconsax Bulk */}
+      {/* Search icon */}
       <span
         className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none"
         style={{ color: 'var(--color-text-muted)' }}
         aria-hidden="true"
       >
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-          <path
-            opacity="0.4"
-            d="M11.5 21C16.7467 21 21 16.7467 21 11.5C21 6.25329 16.7467 2 11.5 2C6.25329 2 2 6.25329 2 11.5C2 16.7467 6.25329 21 11.5 21Z"
-            fill="currentColor"
-          />
-          <path
-            d="M21.3 22C21.12 22 20.94 21.93 20.81 21.8L18.95 19.94C18.68 19.67 18.68 19.23 18.95 18.95C19.22 18.68 19.66 18.68 19.94 18.95L21.8 20.81C22.07 21.08 22.07 21.52 21.8 21.8C21.66 21.93 21.48 22 21.3 22Z"
-            fill="currentColor"
-          />
-        </svg>
+        <IconSearch />
       </span>
 
       <input
@@ -70,6 +75,7 @@ export function SearchBar({
         role="searchbox"
         aria-label="Buscar ofertas de supermercados"
         className="search-input"
+        style={showButton ? { paddingRight: '7.5rem' } : undefined}
         value={value}
         onChange={handleChange}
         placeholder={placeholder}
@@ -78,17 +84,35 @@ export function SearchBar({
         spellCheck={false}
       />
 
-      {/* Botón limpiar */}
-      {value && (
+      {/* Clear button — only when there's text and no showButton */}
+      {value && !showButton && (
         <button
           type="button"
           onClick={handleClear}
-          className="absolute right-4 top-1/2 -translate-y-1/2 text-[--color-text-muted] hover:text-[--color-text-primary] transition-colors"
+          className="absolute right-4 top-1/2 -translate-y-1/2 transition-colors"
+          style={{ color: 'var(--color-text-muted)' }}
           aria-label="Limpiar búsqueda"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
           </svg>
+        </button>
+      )}
+
+      {/* Visible Search button — hero variant */}
+      {showButton && (
+        <button
+          type="submit"
+          className="btn-primary absolute right-2 top-1/2 -translate-y-1/2"
+          style={{
+            paddingLeft: '1rem',
+            paddingRight: '1rem',
+            fontSize: '0.75rem',
+            minHeight: '40px',
+          }}
+          aria-label="Buscar"
+        >
+          Buscar
         </button>
       )}
     </form>
