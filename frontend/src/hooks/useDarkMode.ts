@@ -12,7 +12,7 @@ function getInitialTheme(): Theme {
   } catch {
     // localStorage not available (e.g. private mode on some browsers)
   }
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  return 'light'
 }
 
 /** Apply theme class to <html> and set color-scheme on <meta> */
@@ -20,7 +20,9 @@ function applyTheme(theme: Theme): void {
   const root = document.documentElement
   if (theme === 'dark') {
     root.classList.add('dark')
+    root.classList.remove('light')
   } else {
+    root.classList.add('light')
     root.classList.remove('dark')
   }
   root.style.colorScheme = theme

@@ -47,6 +47,24 @@ def _map_category(vtex_category: Optional[str]) -> Optional[str]:
     return "despensa"  # fallback: despensa si no matchea nada
 
 
+import re
+
+STORE_DOMAINS = {
+    "jumbo": "www.jumbo.cl",
+    "santa-isabel": "www.santaisabel.cl",
+    "unimarc": "www.unimarc.cl",
+}
+
+def _clean_product_name(name: str) -> str:
+    """Elimina múltiples puntos (ej: .. o ...) y espacios múltiples de los nombres."""
+    # Reemplaza dos o más puntos por un espacio
+    name = re.sub(r"\.{2,}", " ", name)
+    # Reemplaza múltiples espacios por uno solo
+    name = re.sub(r"\s+", " ", name)
+    # Eliminar punto final si existe
+    name = name.rstrip(".")
+    return name.strip()
+
 def _parse_vtex_product(item: dict, store_slug: str) -> Optional[RawOffer]:
     """
     Parsea un ítem de la API VTEX a RawOffer.
@@ -54,7 +72,7 @@ def _parse_vtex_product(item: dict, store_slug: str) -> Optional[RawOffer]:
     """
     try:
         product_id = str(item.get("productId", ""))
-        name = item.get("productName", "").strip()
+        name = _clean_product_name(item.get("productName", ""))
 
         if not product_id or not name:
             return None
@@ -69,8 +87,19 @@ def _parse_vtex_product(item: dict, store_slug: str) -> Optional[RawOffer]:
 
         # URL del producto
         link = item.get("link", "") or item.get("linkText", "")
+        domain = STORE_DOMAINS.get(store_slug, f"www.{store_slug}.cl")
+        
+        # Sanitizar dominios de VTEX
+        vtex_patterns = [
+            r"https?://[a-zA-Z0-9-]+\.vteximg\.com\.br",
+            r"https?://[a-zA-Z0-9-]+\.vtexassets\.com",
+        ]
+        for pattern in vtex_patterns:
+            link = re.sub(pattern, f"https://{domain}", link)
+            
         if not link.startswith("http"):
-            link = f"https://www.{store_slug}.cl/{link}"
+            link_clean = link.lstrip("/")
+            link = f"https://{domain}/{link_clean}"
 
         # Precios desde commertialOffer
         sellers = item.get("items", [{}])[0].get("sellers", [{}])
@@ -79,6 +108,14 @@ def _parse_vtex_product(item: dict, store_slug: str) -> Optional[RawOffer]:
         list_price = offer.get("ListPrice", 0)
 
         if not price or price <= 0:
+            return None
+
+        # Filtrar ofertas falsas (sin descuento real o descuento menor a 5%)
+        if not list_price or list_price <= price:
+            return None
+
+        discount_pct = (1 - price / list_price) * 100
+        if discount_pct < 5:
             return None
 
         # Marca
@@ -97,7 +134,7 @@ def _parse_vtex_product(item: dict, store_slug: str) -> Optional[RawOffer]:
             image_url=image_url,
             offer_url=link,
             offer_price=float(price),
-            original_price=float(list_price) if list_price > price else None,
+            original_price=float(list_price),
             store_slug=store_slug,
             category_hint=category_hint,
         )

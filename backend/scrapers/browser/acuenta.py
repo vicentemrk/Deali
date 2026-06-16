@@ -13,7 +13,7 @@ import structlog
 from config import settings
 from scrapers.base import BaseScraper
 from scrapers.models import RawOffer
-from scrapers.vtex.base_vtex import _map_category
+from scrapers.vtex.base_vtex import _map_category, _clean_product_name
 
 log = structlog.get_logger(__name__)
 
@@ -167,6 +167,10 @@ class AcuentaScraper(BaseScraper):
                     if not card["original_price"] or card["offer_price"] >= card["original_price"]:
                         continue
 
+                    discount_pct = (1 - card["offer_price"] / card["original_price"]) * 100
+                    if discount_pct < 5.0:
+                        continue
+
                     seen.add(name_key)
                     sku = hashlib.sha256(f"acuenta::{name_key}".encode()).hexdigest()[:32]
                     offer_url = card["offer_url"]
@@ -203,7 +207,7 @@ class AcuentaScraper(BaseScraper):
         """Descubre URLs de campañas activas desde /ofertas."""
         try:
             await page.goto(OFFERS_URL, wait_until="domcontentloaded", timeout=25_000)
-            await page.locator('a[href*="/ca/"]').first().wait_for(timeout=10_000)
+            await page.locator('a[href*="/ca/"]').first.wait_for(timeout=10_000)
 
             discovered = await page.eval_on_selector_all(
                 'a[href*="/ca/"]',
@@ -253,7 +257,7 @@ class AcuentaScraper(BaseScraper):
             # Nombre
             raw_name = await _safe_text(card.locator('[data-testid="card-name"]').first)
             fallback_name = await _safe_text(anchor)
-            name = ((raw_name or fallback_name) or "").replace(r"\s+", " ").strip()[:180]
+            name = _clean_product_name((raw_name or fallback_name) or "")[:180]
             if not name:
                 continue
 

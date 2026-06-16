@@ -24,16 +24,16 @@ const DISCOUNT_FILTERS = [
 ]
 
 const CATEGORY_FILTERS = [
-  { slug: '',                label: 'Todas',             emoji: '🛒' },
-  { slug: 'frutas-verduras', label: 'Frutas y Verduras',  emoji: '🥦' },
-  { slug: 'carnes-pescados', label: 'Carnes y Pescados',  emoji: '🥩' },
-  { slug: 'lacteos-huevos',  label: 'Lácteos y Huevos',  emoji: '🥛' },
-  { slug: 'panaderia',       label: 'Panadería',          emoji: '🍞' },
-  { slug: 'bebidas',         label: 'Bebidas',            emoji: '🧃' },
-  { slug: 'snacks-dulces',   label: 'Snacks y Dulces',   emoji: '🍫' },
-  { slug: 'limpieza',        label: 'Limpieza',           emoji: '🧹' },
-  { slug: 'cuidado-personal',label: 'Cuidado Personal',  emoji: '🧴' },
-  { slug: 'congelados',      label: 'Congelados',         emoji: '🧊' },
+  { slug: '',                label: 'Todas' },
+  { slug: 'frutas-verduras', label: 'Frutas y Verduras' },
+  { slug: 'carnes-pescados', label: 'Carnes y Pescados' },
+  { slug: 'lacteos-huevos',  label: 'Lácteos y Huevos' },
+  { slug: 'panaderia',       label: 'Panadería' },
+  { slug: 'bebidas',         label: 'Bebidas' },
+  { slug: 'snacks-dulces',   label: 'Snacks y Dulces' },
+  { slug: 'limpieza',        label: 'Limpieza' },
+  { slug: 'cuidado-personal',label: 'Cuidado Personal' },
+  { slug: 'congelados',      label: 'Congelados' },
 ]
 
 const SORT_OPTIONS: { value: OffersSortBy; label: string }[] = [
@@ -234,7 +234,6 @@ export function HomePage() {
                 onClick={() => setCategorySlug(f.slug)}
                 aria-pressed={isActive}
               >
-                <span aria-hidden="true">{f.emoji}</span>
                 {f.label}
               </button>
             )

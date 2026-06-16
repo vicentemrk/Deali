@@ -19,7 +19,7 @@ import structlog
 from config import settings
 from scrapers.base import BaseScraper
 from scrapers.models import RawOffer
-from scrapers.vtex.base_vtex import _map_category
+from scrapers.vtex.base_vtex import _map_category, _clean_product_name
 
 log = structlog.get_logger(__name__)
 
@@ -85,7 +85,7 @@ def _extract_products_from_next_data(data: dict) -> list[dict]:
 
 
 def _parse_next_data_product(product: dict, seen: set[str]) -> Optional[RawOffer]:
-    name = (product.get("displayName") or "").strip()
+    name = _clean_product_name(product.get("displayName") or "")
     if not name or name.lower() in seen:
         return None
 
@@ -95,6 +95,10 @@ def _parse_next_data_product(product: dict, seen: set[str]) -> Optional[RawOffer
     original_price = _safe_price(prices.get("originalPrice"))
 
     if not offer_price or not original_price or offer_price >= original_price:
+        return None
+
+    discount_pct = (1 - offer_price / original_price) * 100
+    if discount_pct < 5.0:
         return None
 
     images = variant.get("medias") or []
@@ -217,7 +221,7 @@ class TottusScraper(BaseScraper):
                     for widget in payload.get("widgets", []):
                         products.extend(widget.get("data", []))
                     for p in products:
-                        name = (p.get("displayName") or "").strip()
+                        name = _clean_product_name(p.get("displayName") or "")
                         if not name or name.lower() in seen:
                             continue
                         prices = p.get("prices", [])
@@ -228,6 +232,9 @@ class TottusScraper(BaseScraper):
                             next((x.get("originalPrice") for x in prices if x.get("crossed")), None)
                         )
                         if not offer_price or not original_price or offer_price >= original_price:
+                            continue
+                        discount_pct = (1 - offer_price / original_price) * 100
+                        if discount_pct < 5.0:
                             continue
                         media = p.get("mediaUrls", [])
                         image_url = f"{media[0]}/500x500" if media else ""

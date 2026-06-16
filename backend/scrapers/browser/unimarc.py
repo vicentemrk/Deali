@@ -15,7 +15,7 @@ import structlog
 from config import settings
 from scrapers.base import BaseScraper
 from scrapers.models import RawOffer
-from scrapers.vtex.base_vtex import _map_category
+from scrapers.vtex.base_vtex import _map_category, _clean_product_name
 
 log = structlog.get_logger(__name__)
 
@@ -67,7 +67,7 @@ def _extract_category_hint(product: dict) -> Optional[str]:
 
 
 def _map_product(product: dict, seen: set[str]) -> Optional[RawOffer]:
-    name = (product.get("name") or "").strip()
+    name = _clean_product_name(product.get("name") or "")
     if not name or name.lower() in seen:
         return None
 
@@ -86,6 +86,10 @@ def _map_product(product: dict, seen: set[str]) -> Optional[RawOffer]:
         original_price = promo_price + promo_saving
 
     if not offer_price or not original_price or offer_price >= original_price:
+        return None
+
+    discount_pct = (1 - offer_price / original_price) * 100
+    if discount_pct < 5.0:
         return None
 
     # Imagen: puede ser string o dict con src/url
